@@ -11,7 +11,7 @@
 use libc::{
     c_int, c_void, pthread_kill, pthread_sigmask, pthread_t, sigaction, sigaddset, sigemptyset,
     siginfo_t, sigismember, sigpending, sigset_t, sigtimedwait, timespec, EAGAIN, EINTR, EINVAL,
-    SA_SIGINFO, SIGHUP, SIGSYS, SIG_BLOCK, SIG_UNBLOCK,
+    SIGHUP, SIGSYS, SIG_BLOCK, SIG_UNBLOCK,
 };
 
 use errno;
@@ -83,13 +83,18 @@ pub enum SignalHandler {
     // TODO add a`SimpleHandler` when `libc` adds `sa_handler` support to `sigaction`.
 }
 
+impl SignalHandler {
+    fn set_flags(act: &mut sigaction, flag: c_int) {
+        act.sa_flags = flag;
+    }
+}
 /// Fills a `sigaction` structure from of the signal handler.
+/// Refer to http://man7.org/linux/man-pages/man7/signal.7.html
 impl Into<sigaction> for SignalHandler {
     fn into(self) -> sigaction {
         let mut act: sigaction = unsafe { mem::zeroed() };
         match self {
             SignalHandler::Siginfo(function) => {
-                act.sa_flags = SA_SIGINFO;
                 act.sa_sigaction = function as *const () as usize;
             }
         }
@@ -135,14 +140,17 @@ pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
 ///
 /// This is considered unsafe because the given handler will be called asynchronously, interrupting
 /// whatever the thread was doing and therefore must only do async-signal-safe operations.
+/// flags: SA_SIGINFO or SA_RESTART if wants to restart after signal received.
 pub unsafe fn register_signal_handler(
     num: i32,
     handler: SignalHandler,
     for_vcpu: bool,
+    flag: c_int,
 ) -> errno::Result<()> {
     let num = validate_signal_num(num, for_vcpu)?;
-    let act: sigaction = handler.into();
-    match sigaction(num, &act, ::std::ptr::null_mut()) {
+    let mut act: sigaction = handler.into();
+    SignalHandler::set_flags(&mut act, flag);
+    match sigaction(num, &act, null_mut()) {
         0 => Ok(()),
         _ => errno::errno_result(),
     }
@@ -313,7 +321,7 @@ unsafe impl<T> Killable for JoinHandle<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libc;
+    use libc::SA_SIGINFO;
     use std::thread;
     use std::time::Duration;
 
@@ -332,20 +340,31 @@ mod tests {
             assert!(register_signal_handler(
                 SIGRTMAX(),
                 SignalHandler::Siginfo(handle_signal),
-                true
+                true,
+                SA_SIGINFO
             )
             .is_err());
             format!(
                 "{:?}",
-                register_signal_handler(SIGRTMAX(), SignalHandler::Siginfo(handle_signal), true)
+                register_signal_handler(
+                    SIGRTMAX(),
+                    SignalHandler::Siginfo(handle_signal),
+                    true,
+                    SA_SIGINFO
+                )
             );
-            assert!(
-                register_signal_handler(0, SignalHandler::Siginfo(handle_signal), true).is_ok()
-            );
+            assert!(register_signal_handler(
+                0,
+                SignalHandler::Siginfo(handle_signal),
+                true,
+                SA_SIGINFO
+            )
+            .is_ok());
             assert!(register_signal_handler(
                 libc::SIGSYS,
                 SignalHandler::Siginfo(handle_signal),
-                false
+                false,
+                SA_SIGINFO
             )
             .is_ok());
         }
@@ -362,7 +381,7 @@ mod tests {
         // be brought down when the signal is received, as part of the default behaviour. Signal
         // handlers are global, so we install this before starting the thread.
         unsafe {
-            register_signal_handler(0, SignalHandler::Siginfo(handle_signal), true)
+            register_signal_handler(0, SignalHandler::Siginfo(handle_signal), true, SA_SIGINFO)
                 .expect("failed to register vcpu signal handler");
         }
 
