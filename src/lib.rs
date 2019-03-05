@@ -11,3 +11,12 @@ pub mod eventfd;
 pub mod signal;
 pub mod terminal;
 pub mod timerfd;
+
+#[macro_use]
+pub mod syslog;
+
+pub mod poll;
+
+pub use errno::*;
+pub use eventfd::*;
+pub use poll::*;
