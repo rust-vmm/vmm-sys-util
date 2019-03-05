@@ -10,3 +10,4 @@ pub mod errno;
 pub mod eventfd;
 pub mod signal;
 pub mod terminal;
+pub mod timerfd;
