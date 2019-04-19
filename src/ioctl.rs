@@ -29,12 +29,14 @@ macro_rules! ioctl_expr {
 macro_rules! ioctl_ioc_nr {
     ($name:ident, $dir:expr, $ty:expr, $nr:expr, $size:expr) => {
         #[allow(non_snake_case)]
+        #[allow(clippy::cast_lossless)]
         pub fn $name() -> ::std::os::raw::c_ulong {
             ioctl_expr!($dir, $ty, $nr, $size)
         }
     };
     ($name:ident, $dir:expr, $ty:expr, $nr:expr, $size:expr, $($v:ident),+) => {
         #[allow(non_snake_case)]
+        #[allow(clippy::cast_lossless)]
         pub fn $name($($v: ::std::os::raw::c_uint),+) -> ::std::os::raw::c_ulong {
             ioctl_expr!($dir, $ty, $nr, $size)
         }
@@ -210,14 +212,14 @@ mod tests {
 
     #[test]
     fn test_ioctl_macros() {
-        assert_eq!(0x0000AE01, KVM_CREATE_VM());
-        assert_eq!(0x0000AF01, VHOST_SET_OWNER());
-        assert_eq!(0x800454CF, TUNGETFEATURES());
-        assert_eq!(0x400454D9, TUNSETQUEUE());
-        assert_eq!(0xC004AE02, KVM_GET_MSR_INDEX_LIST());
-        assert_eq!(0xc004AF12, VHOST_GET_VRING_BASE());
+        assert_eq!(0x0000_AE01, KVM_CREATE_VM());
+        assert_eq!(0x0000_AF01, VHOST_SET_OWNER());
+        assert_eq!(0x8004_54CF, TUNGETFEATURES());
+        assert_eq!(0x4004_54D9, TUNSETQUEUE());
+        assert_eq!(0xC004_AE02, KVM_GET_MSR_INDEX_LIST());
+        assert_eq!(0xC004_AF12, VHOST_GET_VRING_BASE());
 
-        assert_eq!(0x80804522, EVIOCGBIT(2));
-        assert_eq!(0x00004509, FAKE_IOCTL_2_ARG(3, 5));
+        assert_eq!(0x8080_4522, EVIOCGBIT(2));
+        assert_eq!(0x0000_4509, FAKE_IOCTL_2_ARG(3, 5));
     }
 }

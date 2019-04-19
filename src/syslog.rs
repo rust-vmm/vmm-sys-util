@@ -259,7 +259,7 @@ fn lock() -> Result<MutexGuard<'static, State>, Error> {
     let state = unsafe { &*state_ptr };
     let guard = match state.lock() {
         Ok(guard) => guard,
-        Err(_) => panic!("mutex is poisoned"),
+        _ => panic!("mutex is poisoned"),
     };
     Ok(guard)
 }
@@ -370,6 +370,7 @@ pub fn echo_stderr(enable: bool) {
 /// pushed into `fds`.
 ///
 /// Note that the `stderr` file descriptor is never added, as it is not owned by syslog.
+#[allow(clippy::redundant_closure)]
 pub fn push_fds(fds: &mut Vec<RawFd>) {
     let state = lock!();
     fds.extend(state.socket.iter().map(|s| s.as_raw_fd()));
@@ -439,6 +440,7 @@ fn get_localtime() -> tm {
 ///             format_args!("hello syslog"));
 /// # }
 /// ```
+#[allow(clippy::redundant_closure)]
 pub fn log(pri: Priority, fac: Facility, file_name: &str, line: u32, args: fmt::Arguments) {
     const MONTHS: [&str; 12] = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -556,7 +558,7 @@ mod tests {
         init().unwrap();
         let mut fds = Vec::new();
         push_fds(&mut fds);
-        assert!(fds.len() >= 1);
+        assert!(!fds.is_empty());
         for fd in fds {
             assert!(fd >= 0);
         }
@@ -595,6 +597,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::zero_prefixed_literal)]
     fn test_syslog_file() {
         init().unwrap();
         let shm_name = CStr::from_bytes_with_nul(b"/crosvm_shm\0").unwrap();
@@ -608,7 +611,7 @@ mod tests {
         let syslog_file = file.try_clone().expect("error cloning shared memory file");
         echo_file(Some(syslog_file));
 
-        const TEST_STR: &'static str = "hello shared memory file";
+        const TEST_STR: &str = "hello shared memory file";
         log(
             Priority::Error,
             Facility::User,

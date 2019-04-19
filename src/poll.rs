@@ -50,6 +50,12 @@ impl EpollEvents {
     }
 }
 
+impl Default for EpollEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Trait for a token that can be associated with an `fd` in a `PollContext`.
 ///
 /// Simple enums that have no or primitive variant data can use the `#[derive(PollToken)]`

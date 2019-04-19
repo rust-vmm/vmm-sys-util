@@ -57,6 +57,7 @@ impl<T: PunchHole + Seek + Write> WriteZeroes for T {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_io_amount)]
 mod tests {
     use super::*;
     use std::fs::OpenOptions;
