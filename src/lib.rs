@@ -14,6 +14,7 @@ pub mod file_traits;
 pub mod signal;
 pub mod terminal;
 pub mod timerfd;
+pub mod write_zeroes;
 
 #[macro_use]
 pub mod syslog;
@@ -28,6 +29,7 @@ pub use poll::*;
 use std::os::unix::io::AsRawFd;
 
 pub use crate::file_traits::{FileSetLen, FileSync};
+pub use crate::write_zeroes::{PunchHole, WriteZeroes};
 
 pub enum FallocateMode {
     PunchHole,
