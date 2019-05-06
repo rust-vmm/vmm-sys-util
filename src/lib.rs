@@ -3,6 +3,8 @@
 
 extern crate libc;
 
+mod tempdir;
+
 #[macro_use]
 pub mod ioctl;
 
@@ -18,6 +20,7 @@ pub mod syslog;
 
 pub mod poll;
 
+pub use crate::tempdir::*;
 pub use errno::*;
 pub use eventfd::*;
 pub use poll::*;
