@@ -11,6 +11,7 @@ pub mod ioctl;
 pub mod errno;
 pub mod eventfd;
 pub mod file_traits;
+pub mod seek_hole;
 pub mod signal;
 pub mod terminal;
 pub mod timerfd;
@@ -29,6 +30,7 @@ pub use poll::*;
 use std::os::unix::io::AsRawFd;
 
 pub use crate::file_traits::{FileSetLen, FileSync};
+pub use crate::seek_hole::SeekHole;
 pub use crate::write_zeroes::{PunchHole, WriteZeroes};
 
 pub enum FallocateMode {
