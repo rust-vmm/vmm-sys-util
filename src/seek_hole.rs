@@ -8,6 +8,10 @@ use std::fs::File;
 use std::io::{Error, Result};
 use std::os::unix::io::AsRawFd;
 
+#[cfg(target_env = "musl")]
+use libc::{c_int, lseek64, ENXIO};
+
+#[cfg(target_env = "gnu")]
 use libc::{lseek64, ENXIO, SEEK_DATA, SEEK_HOLE};
 
 /// A trait for seeking to the next hole or non-hole position in a file.
@@ -23,6 +27,11 @@ pub trait SeekHole {
     /// Returns the current offset after the seek or an error.
     fn seek_data(&mut self, offset: u64) -> Result<Option<u64>>;
 }
+
+#[cfg(target_env = "musl")]
+pub const SEEK_DATA: c_int = 3;
+#[cfg(target_env = "musl")]
+pub const SEEK_HOLE: c_int = 4;
 
 /// Safe wrapper for `libc::lseek64()`
 fn lseek(file: &mut File, offset: i64, whence: i32) -> Result<Option<u64>> {
