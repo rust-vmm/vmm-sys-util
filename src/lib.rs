@@ -20,6 +20,10 @@ pub mod poll;
 pub mod rand;
 pub mod seek_hole;
 pub mod signal;
+// The rust musl libc implementation has defined msghdr.{__pad1, __pad2) as private, which causes
+// trouble to initialize a msghdr object. So disable for musl until the musl libc gets fixed.
+#[cfg(not(target_env = "musl"))]
+pub mod sock_ctrl_msg;
 pub mod tempdir;
 pub mod tempfile;
 pub mod terminal;
