@@ -9,6 +9,8 @@ extern crate libc;
 
 #[macro_use]
 pub mod ioctl;
+
+pub mod aio;
 pub mod errno;
 pub mod eventfd;
 pub mod fallocate;
