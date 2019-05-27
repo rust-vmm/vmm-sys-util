@@ -13,6 +13,9 @@ use std::{io, mem, result};
 
 use libc::{c_void, dup, eventfd, read, write};
 
+// Reexport commonly used flags from libc.
+pub use libc::{EFD_CLOEXEC, EFD_NONBLOCK, EFD_SEMAPHORE};
+
 /// A safe wrapper around Linux
 /// [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
 pub struct EventFd {
@@ -30,9 +33,9 @@ impl EventFd {
     ///
     /// ```
     /// extern crate vmm_sys_util;
-    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
     ///
-    /// EventFd::new(libc::EFD_NONBLOCK).unwrap();
+    /// EventFd::new(EFD_NONBLOCK).unwrap();
     /// ```
     pub fn new(flag: i32) -> result::Result<EventFd, io::Error> {
         // This is safe because eventfd merely allocated an eventfd for
@@ -63,10 +66,8 @@ impl EventFd {
     /// # Examples
     ///
     /// ```
-    /// # extern crate libc;
     /// extern crate vmm_sys_util;
-    /// use vmm_sys_util::eventfd::EventFd;
-    /// # use libc::EFD_NONBLOCK;
+    /// use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
     ///
     /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
     /// evt.write(55).unwrap();
@@ -97,10 +98,8 @@ impl EventFd {
     /// # Examples
     ///
     /// ```
-    /// # extern crate libc;
     /// extern crate vmm_sys_util;
-    /// use vmm_sys_util::eventfd::EventFd;
-    /// # use libc::EFD_NONBLOCK;
+    /// use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
     ///
     /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
     /// evt.write(55).unwrap();
@@ -132,10 +131,8 @@ impl EventFd {
     /// # Examples
     ///
     /// ```
-    /// # extern crate libc;
     /// extern crate vmm_sys_util;
-    /// use vmm_sys_util::eventfd::EventFd;
-    /// # use libc::EFD_NONBLOCK;
+    /// use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
     ///
     /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
     /// let evt_clone = evt.try_clone().unwrap();
@@ -174,7 +171,6 @@ impl FromRawFd for EventFd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libc::EFD_NONBLOCK;
 
     #[test]
     fn test_new() {
