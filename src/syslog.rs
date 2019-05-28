@@ -28,6 +28,7 @@
 //! ```
 
 use std::env;
+use std::ffi::CString;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display};
 use std::fs::File;
@@ -177,17 +178,20 @@ fn openlog_and_get_socket() -> Result<UnixDatagram, Error> {
         closelog();
     }
 
-    // Ordinarily libc's FD for the syslog connection can't be accessed, but we can guess that the
-    // FD that openlog will be getting is the lowest unused FD. To guarantee that an FD is opened in
-    // this function we use the LOG_NDELAY to tell openlog to connect to the syslog now. To get the
-    // lowest unused FD, we open a dummy file (which the manual says will always return the lowest
-    // fd), and then close that fd. Voilà, we now know the lowest numbered FD. The call to openlog
-    // will make use of that FD, and then we just wrap a `UnixDatagram` around it for ease of use.
-    let fd = File::open("/dev/null")
-        .map_err(Error::GetLowestFd)?
-        .as_raw_fd();
-
+    let file_path = CString::new("/dev/null").unwrap();
     unsafe {
+        // Ordinarily libc's FD for the syslog connection can't be accessed, but we can guess that the
+        // FD that openlog will be getting is the lowest unused FD. To guarantee that an FD is opened in
+        // this function we use the LOG_NDELAY to tell openlog to connect to the syslog now. To get the
+        // lowest unused FD, we open a dummy file (which the manual says will always return the lowest
+        // fd), and then close that fd. Voilà, we now know the lowest numbered FD. The call to openlog
+        // will make use of that FD, and then we just wrap a `UnixDatagram` around it for ease of use.
+        let fd = libc::open(file_path.as_ptr(), libc::O_RDONLY);
+        if fd < 0 {
+            let err = io::Error::last_os_error();
+            return Err(Error::GetLowestFd(err));
+        }
+
         // Safe because openlog accesses no pointers because `ident` is null, only valid flags are
         // used, and it returns no error.
         openlog(null(), LOG_NDELAY | LOG_PERROR | LOG_PID, LOG_USER);
