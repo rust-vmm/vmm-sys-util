@@ -46,6 +46,7 @@ steps:
           privileged: true
           image: "fandree/rust-vmm-dev"
           always-pull: true
+          tmpfs: [ "/tmp:exec" ]
           
   - label: "unittests-gnu-arm"
     commands:
@@ -59,6 +60,7 @@ steps:
           privileged: true
           image: "fandree/rust-vmm-dev"
           always-pull: true
+          tmpfs: [ "/tmp:exec" ]
   
   - label: "clippy-x86"
     commands:
