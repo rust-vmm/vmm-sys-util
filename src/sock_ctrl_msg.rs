@@ -23,19 +23,13 @@ use libc::{
 
 macro_rules! CMSG_ALIGN {
     ($len:expr) => {
-        (($len) + size_of::<c_long>() - 1) & !(size_of::<c_long>() - 1)
+        (($len) as usize + size_of::<c_long>() - 1) & !(size_of::<c_long>() - 1)
     };
 }
 
 macro_rules! CMSG_SPACE {
     ($len:expr) => {
         size_of::<cmsghdr>() + CMSG_ALIGN!($len)
-    };
-}
-
-macro_rules! CMSG_LEN {
-    ($len:expr) => {
-        size_of::<cmsghdr>() + ($len)
     };
 }
 
@@ -49,6 +43,57 @@ fn CMSG_DATA(cmsg_buffer: *mut cmsghdr) -> *mut RawFd {
     cmsg_buffer.wrapping_offset(1) as *mut RawFd
 }
 
+#[cfg(not(target_env = "musl"))]
+macro_rules! CMSG_LEN {
+    ($len:expr) => {
+        size_of::<cmsghdr>() + ($len)
+    };
+}
+
+#[cfg(target_env = "musl")]
+macro_rules! CMSG_LEN {
+    ($len:expr) => {{
+        let sz = size_of::<cmsghdr>() + ($len);
+        assert!(sz <= (std::u32::MAX as usize));
+        sz as u32
+    }};
+}
+
+#[cfg(not(target_env = "musl"))]
+fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
+    msghdr {
+        msg_name: null_mut(),
+        msg_namelen: 0,
+        msg_iov: iovecs.as_mut_ptr(),
+        msg_iovlen: iovecs.len(),
+        msg_control: null_mut(),
+        msg_controllen: 0,
+        msg_flags: 0,
+    }
+}
+
+#[cfg(target_env = "musl")]
+fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
+    assert!(iovecs.len() <= (std::i32::MAX as usize));
+    let mut msg: msghdr = unsafe { std::mem::zeroed() };
+    msg.msg_name = null_mut();
+    msg.msg_iov = iovecs.as_mut_ptr();
+    msg.msg_iovlen = iovecs.len() as i32;
+    msg.msg_control = null_mut();
+    msg
+}
+
+#[cfg(not(target_env = "musl"))]
+fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
+    msg.msg_controllen = cmsg_capacity;
+}
+
+#[cfg(target_env = "musl")]
+fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
+    assert!(cmsg_capacity <= (std::u32::MAX as usize));
+    msg.msg_controllen = cmsg_capacity as u32;
+}
+
 // This function is like CMSG_NEXT, but safer because it reads only from references, although it
 // does some pointer arithmetic on cmsg_ptr.
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
@@ -57,7 +102,7 @@ fn get_next_cmsg(msghdr: &msghdr, cmsg: &cmsghdr, cmsg_ptr: *mut cmsghdr) -> *mu
     if next_cmsg
         .wrapping_offset(1)
         .wrapping_sub(msghdr.msg_control as usize) as usize
-        > msghdr.msg_controllen
+        > msghdr.msg_controllen as usize
     {
         null_mut()
     } else {
@@ -85,6 +130,8 @@ impl CmsgBuffer {
                         cmsg_len: 0,
                         cmsg_level: 0,
                         cmsg_type: 0,
+                        #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
+                        __pad1: 0,
                     };
                     cap_in_cmsghdr_units
                 ]
@@ -113,21 +160,15 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
         });
     }
 
-    let mut msg = msghdr {
-        msg_name: null_mut(),
-        msg_namelen: 0,
-        msg_iov: iovecs.as_mut_ptr(),
-        msg_iovlen: iovecs.len(),
-        msg_control: null_mut(),
-        msg_controllen: 0,
-        msg_flags: 0,
-    };
+    let mut msg = new_msghdr(&mut iovecs);
 
     if !out_fds.is_empty() {
         let cmsg = cmsghdr {
             cmsg_len: CMSG_LEN!(size_of::<RawFd>() * out_fds.len()),
             cmsg_level: SOL_SOCKET,
             cmsg_type: SCM_RIGHTS,
+            #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
+            __pad1: 0,
         };
         unsafe {
             // Safe because cmsg_buffer was allocated to be large enough to contain cmsghdr.
@@ -142,7 +183,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
         }
 
         msg.msg_control = cmsg_buffer.as_mut_ptr() as *mut c_void;
-        msg.msg_controllen = cmsg_capacity;
+        set_msg_controllen(&mut msg, cmsg_capacity);
     }
 
     // Safe because the msghdr was properly constructed from valid (or null) pointers of the
@@ -159,19 +200,11 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
 fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<(usize, usize)> {
     let cmsg_capacity = CMSG_SPACE!(size_of::<RawFd>() * in_fds.len());
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
-    let mut msg = msghdr {
-        msg_name: null_mut(),
-        msg_namelen: 0,
-        msg_iov: iovecs.as_mut_ptr(),
-        msg_iovlen: iovecs.len(),
-        msg_control: null_mut(),
-        msg_controllen: 0,
-        msg_flags: 0,
-    };
+    let mut msg = new_msghdr(iovecs);
 
     if !in_fds.is_empty() {
         msg.msg_control = cmsg_buffer.as_mut_ptr() as *mut c_void;
-        msg.msg_controllen = cmsg_capacity;
+        set_msg_controllen(&mut msg, cmsg_capacity);
     }
 
     // Safe because the msghdr was properly constructed from valid (or null) pointers of the
@@ -182,7 +215,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
         return Err(Error::last());
     }
 
-    if total_read == 0 && msg.msg_controllen < size_of::<cmsghdr>() {
+    if total_read == 0 && (msg.msg_controllen as usize) < size_of::<cmsghdr>() {
         return Ok((0, 0));
     }
 
@@ -194,7 +227,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
         let cmsg = unsafe { (cmsg_ptr as *mut cmsghdr).read_unaligned() };
 
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fd_count = (cmsg.cmsg_len - CMSG_LEN!(0)) / size_of::<RawFd>();
+            let fd_count = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
             unsafe {
                 copy_nonoverlapping(
                     CMSG_DATA(cmsg_ptr),
@@ -213,6 +246,44 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
 
 /// Trait for file descriptors can send and receive socket control messages via `sendmsg` and
 /// `recvmsg`.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::sock_ctrl_msg::{ScmSocket};
+/// # use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
+/// # use std::fs::File;
+/// # use std::io::Write;
+/// # use std::os::unix::io::{AsRawFd, FromRawFd};
+/// # use std::os::unix::net::UnixDatagram;
+/// # use std::slice::from_raw_parts;
+///
+/// # use libc::{c_void, iovec};
+///
+/// let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
+/// let evt = EventFd::new(0).expect("failed to create eventfd");
+///
+/// let write_count = s1
+///     .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
+///     .expect("failed to send fd");
+///
+/// let mut files = [0; 2];
+/// let mut buf = [0u8];
+/// let mut iovecs = [iovec {
+///     iov_base: buf.as_mut_ptr() as *mut c_void,
+///     iov_len: buf.len(),
+/// }];
+/// let (read_count, file_count) = s2
+///     .recv_with_fds(&mut iovecs[..], &mut files)
+///     .expect("failed to recv fd");
+///
+/// let mut file = unsafe { File::from_raw_fd(files[0]) };
+/// file.write(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
+///     .expect("failed to write to sent fd");
+/// assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+/// ```
 pub trait ScmSocket {
     /// Gets the file descriptor of this socket.
     fn socket_fd(&self) -> RawFd;
@@ -299,8 +370,8 @@ impl ScmSocket for UnixStream {
 /// Trait for types that can be converted into an `iovec` that can be referenced by a syscall for
 /// the lifetime of this object.
 ///
-/// This trait is unsafe because interfaces that use this trait depend on the base pointer and size
-/// being accurate.
+/// This is marked unsafe because the implementation must ensure that the returned pointer and size
+/// is valid and that the lifetime of the returned pointer is at least that of the trait object.
 pub unsafe trait IntoIovec {
     /// Gets the base pointer of this `iovec`.
     fn as_ptr(&self) -> *const c_void;
