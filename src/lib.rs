@@ -13,6 +13,7 @@ pub mod ioctl;
 pub mod errno;
 pub mod eventfd;
 pub mod fallocate;
+pub mod fam;
 pub mod file_traits;
 pub mod poll;
 pub mod rand;
