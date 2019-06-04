@@ -314,7 +314,10 @@ pub unsafe trait Killable {
 // Safe because we fulfill our contract of returning a genuine pthread handle.
 unsafe impl<T> Killable for JoinHandle<T> {
     fn pthread_handle(&self) -> pthread_t {
-        self.as_pthread_t()
+        // JoinHandleExt::as_pthread_t gives c_ulong, convert it to the
+        // type that the libc crate expects
+        assert_eq!(mem::size_of::<pthread_t>(), mem::size_of::<usize>());
+        self.as_pthread_t() as usize as pthread_t
     }
 }
 
