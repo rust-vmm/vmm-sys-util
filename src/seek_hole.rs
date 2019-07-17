@@ -65,7 +65,7 @@ impl SeekHole for File {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TempDir;
+    use crate::tempdir::TempDir;
     use std::fs::File;
     use std::io::{Seek, SeekFrom, Write};
     use std::path::PathBuf;

@@ -42,7 +42,7 @@ impl Error {
     /// extern crate vmm_sys_util;
     /// #
     /// # use libc;
-    /// use vmm_sys_util::Error;
+    /// use vmm_sys_util::errno::Error;
     ///
     /// let err = Error::new(libc::EBADFD);
     /// ```
@@ -67,7 +67,7 @@ impl Error {
     /// # use std::fs::File;
     /// # use std::io::{self, Write};
     /// # use std::os::unix::io::FromRawFd;
-    /// use vmm_sys_util::Error;
+    /// use vmm_sys_util::errno::Error;
     /// #
     /// // Writing to an invalid file returns the error number EBADF.
     /// let mut file = unsafe { File::from_raw_fd(-1) };
@@ -86,7 +86,7 @@ impl Error {
     /// # Examples
     /// ```
     /// extern crate vmm_sys_util;
-    /// use vmm_sys_util::Error;
+    /// use vmm_sys_util::errno::Error;
     ///
     /// let err = Error::new(13);
     /// assert_eq!(err.errno(), 13);
