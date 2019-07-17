@@ -1,31 +1,41 @@
 // Copyright 2019 Intel Corporation. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0 or BSD-3-Clause
 
+//! `vmm-sys-util` is a collection of utilites to make vmm implementation
+//! more convenient.
+
+#![deny(missing_docs)]
+
 extern crate libc;
 
 mod tempdir;
 
 #[macro_use]
-pub mod ioctl;
+mod ioctl;
 
-pub mod errno;
-pub mod eventfd;
-pub mod file_traits;
-pub mod seek_hole;
-pub mod signal;
-pub mod terminal;
-pub mod timerfd;
-pub mod write_zeroes;
+mod errno;
+mod eventfd;
+mod file_traits;
+mod seek_hole;
+mod signal;
+mod terminal;
+mod timerfd;
+mod write_zeroes;
 
 #[macro_use]
 pub mod syslog;
 
-pub mod poll;
+mod poll;
 
 pub use crate::tempdir::*;
-pub use errno::*;
+pub use errno::errno_result;
+pub use errno::{Error, Result};
 pub use eventfd::*;
+pub use ioctl::*;
 pub use poll::*;
+pub use signal::*;
+pub use terminal::Terminal;
+pub use timerfd::*;
 
 use std::os::unix::io::AsRawFd;
 
@@ -33,8 +43,13 @@ pub use crate::file_traits::{FileSetLen, FileSync};
 pub use crate::seek_hole::SeekHole;
 pub use crate::write_zeroes::{PunchHole, WriteZeroes};
 
+/// The mode list used by [`fallocate`]
+///
+/// [`fallocate`]: fn.fallocate.html
 pub enum FallocateMode {
+    /// Specify deallocate file space mode.
     PunchHole,
+    /// Specify zero file space mode.
     ZeroRange,
 }
 

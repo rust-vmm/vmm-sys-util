@@ -43,6 +43,7 @@ const POLL_CONTEXT_MAX_EVENTS: usize = 16;
 pub struct EpollEvents(RefCell<[epoll_event; POLL_CONTEXT_MAX_EVENTS]>);
 
 impl EpollEvents {
+    /// Create a new EpollEvents.
     pub fn new() -> EpollEvents {
         EpollEvents(RefCell::new(
             [epoll_event { events: 0, u64: 0 }; POLL_CONTEXT_MAX_EVENTS],

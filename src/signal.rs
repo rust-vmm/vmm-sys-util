@@ -23,6 +23,7 @@ use std::ptr::{null, null_mut};
 use std::result;
 use std::thread::JoinHandle;
 
+/// Signal specific Error definition.
 #[derive(Debug)]
 pub enum Error {
     /// Couldn't create a sigset.
@@ -75,10 +76,13 @@ impl Display for Error {
     }
 }
 
+/// Signal Result type wrapping signal specific `Error`.
 pub type SignalResult<T> = result::Result<T, Error>;
 type SiginfoHandler = extern "C" fn(num: c_int, info: *mut siginfo_t, _unused: *mut c_void) -> ();
 
+/// Type represents signal handler functions.
 pub enum SignalHandler {
+    /// Contain a signal handler function.
     Siginfo(SiginfoHandler),
     // TODO add a`SimpleHandler` when `libc` adds `sa_handler` support to `sigaction`.
 }
@@ -293,6 +297,7 @@ pub fn clear_signal(num: c_int) -> SignalResult<()> {
 /// This is marked unsafe because the implementation of this trait must guarantee that the returned
 /// pthread_t is valid and has a lifetime at least that of the trait object.
 pub unsafe trait Killable {
+    /// Get the thread to be signalled.
     fn pthread_handle(&self) -> pthread_t;
 
     /// Sends the signal `num + SIGRTMIN` to this killable thread.

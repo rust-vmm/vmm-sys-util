@@ -7,6 +7,7 @@
 // Portions Copyright 2017 The Chromium OS Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-BSD-3-Clause file.
+#![allow(missing_docs)]
 
 //! Macros and wrapper functions for dealing with ioctls.
 use libc;
@@ -126,6 +127,8 @@ macro_rules! ioctl_iowr_nr {
     };
 }
 
+// Following definition is copied from linux kernel ioctl.h, see
+// https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/ioctl.h
 pub const _IOC_NRBITS: c_uint = 8;
 pub const _IOC_TYPEBITS: c_uint = 8;
 pub const _IOC_SIZEBITS: c_uint = 14;

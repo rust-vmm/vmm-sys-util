@@ -12,7 +12,7 @@ use std::io::Result;
 /// wrapped in a trait so that it can be implemented for
 /// other types.
 pub trait FileSync {
-    // Flush buffers related to this file to disk.
+    /// Flush buffers related to this file to disk.
     fn fsync(&mut self) -> Result<()>;
 }
 
@@ -27,8 +27,8 @@ impl FileSync for File {
 /// wrapped in a trait so that it can be implemented for
 /// other types.
 pub trait FileSetLen {
-    // Set the size of this file.
-    // This is the moral equivalent of `ftruncate()`.
+    /// Set the size of this file.
+    /// This is the moral equivalent of `ftruncate()`.
     fn set_len(&self, _len: u64) -> Result<()>;
 }
 

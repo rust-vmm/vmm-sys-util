@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Copyright 2019 Intel Corporation. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -56,6 +57,7 @@ const SYSLOG_PATH: &str = "/dev/log";
 /// The priority (i.e. severity) of a syslog message.
 ///
 /// See syslog man pages for information on their semantics.
+#[allow(missing_docs)]
 #[derive(Copy, Clone, Debug)]
 pub enum Priority {
     Emergency = 0,
@@ -86,6 +88,7 @@ impl fmt::Display for Priority {
 /// The facility of a syslog message.
 ///
 /// See syslog man pages for information on their semantics.
+#[allow(missing_docs)]
 pub enum Facility {
     Kernel = 0,
     User = 1 << 3,
@@ -117,9 +120,9 @@ pub enum Error {
     Socket(io::Error),
     /// Error while attempting to connect socket.
     Connect(io::Error),
-    // There was an error using `open` to get the lowest file descriptor.
+    /// There was an error using `open` to get the lowest file descriptor.
     GetLowestFd(io::Error),
-    // The guess of libc's file descriptor for the syslog connection was invalid.
+    /// The guess of libc's file descriptor for the syslog connection was invalid.
     InvalidFd,
 }
 

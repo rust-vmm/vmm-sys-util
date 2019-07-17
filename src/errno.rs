@@ -18,6 +18,7 @@ use libc::__errno_location;
 /// set by a libc function that returned an error.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Error(i32);
+/// A `Result` type wrapping errno number.
 pub type Result<T> = result::Result<T, Error>;
 
 impl Error {
