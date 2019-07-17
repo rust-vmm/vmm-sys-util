@@ -22,7 +22,7 @@ use libc::{
     EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
 };
 
-use crate::{errno_result, Error, Result};
+use crate::errno::{errno_result, Error, Result};
 
 macro_rules! handle_eintr_errno {
     ($x:expr) => {{
@@ -463,8 +463,10 @@ impl<T: PollToken> IntoRawFd for EpollContext<T> {
 /// # Example
 ///
 /// ```
-/// # use vmm_sys_util::{Result, EventFd, PollContext, PollEvents};
-/// # fn test() -> Result<()> {
+/// # use vmm_sys_util::errno::Result;
+/// # use vmm_sys_util::eventfd::EventFd;
+/// # use vmm_sys_util::poll::{PollContext, PollEvents};
+/// fn test() -> Result<()> {
 ///     let evt1 = EventFd::new(0)?;
 ///     let evt2 = EventFd::new(0)?;
 ///     evt2.write(1)?;
@@ -476,8 +478,8 @@ impl<T: PollToken> IntoRawFd for EpollContext<T> {
 ///     let pollevents: PollEvents<u32> = ctx.wait()?;
 ///     let tokens: Vec<u32> = pollevents.iter_readable().map(|e| e.token()).collect();
 ///     assert_eq!(&tokens[..], &[2]);
-/// #   Ok(())
-/// # }
+///   Ok(())
+/// }
 /// ```
 pub struct PollContext<T> {
     epoll_ctx: EpollContext<T>,

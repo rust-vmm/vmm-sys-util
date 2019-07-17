@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use libc;
 
-use crate::{errno_result, Result};
+use crate::errno::{errno_result, Result};
 
 /// Create and remove a temporary directory.  The directory will be maintained for the lifetime of
 /// the `TempDir` object.
@@ -31,7 +31,7 @@ impl TempDir {
     /// ```
     /// # use std::path::Path;
     /// # use std::path::PathBuf;
-    /// # use vmm_sys_util::TempDir;
+    /// # use vmm_sys_util::tempdir::TempDir;
     /// # fn test_create_temp_dir() -> Result<(), ()> {
     ///       let t = TempDir::new("/tmp/testdir").map_err(|_| ())?;
     ///       assert!(t.as_path().unwrap().exists());
