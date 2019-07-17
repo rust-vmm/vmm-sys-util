@@ -8,6 +8,8 @@ mod tempdir;
 #[macro_use]
 pub mod ioctl;
 
+/// Structures, helpers, and type definitions for working with
+/// [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
 pub mod errno;
 pub mod eventfd;
 pub mod file_traits;

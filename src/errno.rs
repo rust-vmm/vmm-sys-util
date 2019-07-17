@@ -14,27 +14,83 @@ use std::result;
 
 use libc::__errno_location;
 
-/// An error number, retrieved from [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html),
-/// set by a libc function that returned an error.
+/// Wrapper over [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
+///
+/// The error number is an integer number set by system calls and some libc
+/// functions in case of error.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Error(i32);
+
+/// A specialized [Result](https://doc.rust-lang.org/std/result/enum.Result.html) type
+/// for operations that can return `errno`.
+///
+/// This typedef is generally used to avoid writing out `errno::Error` directly and is
+/// otherwise a direct mapping to `Result`.
 pub type Result<T> = result::Result<T, Error>;
 
 impl Error {
-    /// Constructs a new error with the given `errno`.
-    pub fn new(e: i32) -> Error {
-        Error(e)
+    /// Creates a new error from the given error number.
+    ///
+    /// # Arguments
+    ///
+    /// * `errno`: error number used for creating the `Error`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate libc;
+    /// extern crate vmm_sys_util;
+    /// #
+    /// # use libc;
+    /// use vmm_sys_util::Error;
+    ///
+    /// let err = Error::new(libc::EBADFD);
+    /// ```
+    pub fn new(errno: i32) -> Error {
+        Error(errno)
     }
 
-    /// Constructs an error from the current `errno`.
+    /// Returns the last occurred `errno` wrapped in an `Error`.
     ///
-    /// The result of this only has any meaning just after a libc call that returned a value
-    /// indicating `errno` was set.
+    /// Calling `Error::last()` is the equivalent of using
+    /// [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html) in C/C++.
+    /// The result of this function only has meaning after a libc call or syscall
+    /// where `errno` was set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate libc;
+    /// extern crate vmm_sys_util;
+    /// #
+    /// # use libc;
+    /// # use std::fs::File;
+    /// # use std::io::{self, Write};
+    /// # use std::os::unix::io::FromRawFd;
+    /// use vmm_sys_util::Error;
+    /// #
+    /// // Writing to an invalid file returns the error number EBADF.
+    /// let mut file = unsafe { File::from_raw_fd(-1) };
+    /// let _ = file.write(b"test");
+    ///
+    /// // Retrieve the error number of the previous operation using `Error::last()`:
+    /// let write_err = Error::last();
+    /// assert_eq!(write_err, Error::new(libc::EBADF));
+    /// ```
     pub fn last() -> Error {
         Error(unsafe { *__errno_location() })
     }
 
-    /// Gets the `errno` for this error.
+    /// Returns the raw integer value (`errno`) corresponding to this Error.
+    ///
+    /// # Examples
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::Error;
+    ///
+    /// let err = Error::new(13);
+    /// assert_eq!(err.errno(), 13);
+    /// ```
     pub fn errno(self) -> i32 {
         self.0
     }
@@ -71,10 +127,24 @@ mod tests {
     pub fn test_invalid_fd() {
         let mut file = unsafe { File::from_raw_fd(-1) };
         assert!(file.write(b"test").is_err());
+
+        // Test that errno_result returns Err and the error is the expected one.
         let last_err = errno_result::<i32>().unwrap_err();
         assert_eq!(last_err, Error::new(libc::EBADF));
+
+        // Test that the inner value of `Error` corresponds to libc::EBADF.
         assert_eq!(last_err.errno(), libc::EBADF);
+
+        // Test creating an `Error` from a `std::io::Error`.
         assert_eq!(last_err, Error::from(io::Error::last_os_error()));
+
+        // Test that calling `last()` returns the same error as `errno_result()`.
         assert_eq!(last_err, Error::last());
+
+        // Test the display implementation.
+        assert_eq!(
+            format!("{}", Error::new(libc::EBADF)),
+            "Bad file descriptor (os error 9)"
+        );
     }
 }
