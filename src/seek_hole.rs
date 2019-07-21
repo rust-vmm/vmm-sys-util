@@ -122,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cyclomatic_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     fn seek_hole() {
         let tempdir = TempDir::new("/tmp/seek_hole_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path().unwrap());
