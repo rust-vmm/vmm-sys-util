@@ -8,12 +8,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-BSD-3-Clause file.
 
-//! Macros and wrapper functions for dealing with ioctls.
+//! Macros and functions for working with
+//! [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html).
 use libc;
 use std::os::raw::{c_int, c_uint, c_ulong, c_void};
 use std::os::unix::io::AsRawFd;
 
-/// Raw macro to declare the expression that calculates an ioctl number
+/// Expression that calculates an ioctl number.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// # use std::os::raw::c_uint;
+/// use vmm_sys_util::ioctl::_IOC_NONE;
+///
+/// const KVMIO: c_uint = 0xAE;
+/// ioctl_expr!(_IOC_NONE, KVMIO, 0x01, 0);
+/// ```
 #[macro_export]
 macro_rules! ioctl_expr {
     ($dir:expr, $ty:expr, $nr:expr, $size:expr) => {
@@ -24,7 +34,16 @@ macro_rules! ioctl_expr {
     };
 }
 
-/// Raw macro to declare a function that returns an ioctl number.
+/// Declare a function that returns an ioctl number.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// # use std::os::raw::c_uint;
+/// use vmm_sys_util::ioctl::_IOC_NONE;
+///
+/// const KVMIO: c_uint = 0xAE;
+/// ioctl_ioc_nr!(KVM_CREATE_VM, _IOC_NONE, KVMIO, 0x01, 0);
+/// ```
 #[macro_export]
 macro_rules! ioctl_ioc_nr {
     ($name:ident, $dir:expr, $ty:expr, $nr:expr, $size:expr) => {
@@ -44,6 +63,13 @@ macro_rules! ioctl_ioc_nr {
 }
 
 /// Declare an ioctl that transfers no data.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// # use std::os::raw::c_uint;
+/// const KVMIO: c_uint = 0xAE;
+/// ioctl_io_nr!(KVM_CREATE_VM, KVMIO, 0x01);
+/// ```
 #[macro_export]
 macro_rules! ioctl_io_nr {
     ($name:ident, $ty:expr, $nr:expr) => {
@@ -55,6 +81,12 @@ macro_rules! ioctl_io_nr {
 }
 
 /// Declare an ioctl that reads data.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// const TUNTAP: ::std::os::raw::c_uint = 0x54;
+/// ioctl_ior_nr!(TUNGETFEATURES, TUNTAP, 0xcf, ::std::os::raw::c_uint);
+/// ```
 #[macro_export]
 macro_rules! ioctl_ior_nr {
     ($name:ident, $ty:expr, $nr:expr, $size:ty) => {
@@ -79,6 +111,12 @@ macro_rules! ioctl_ior_nr {
 }
 
 /// Declare an ioctl that writes data.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// const TUNTAP: ::std::os::raw::c_uint = 0x54;
+/// ioctl_iow_nr!(TUNSETQUEUE, TUNTAP, 0xd9, ::std::os::raw::c_int);
+/// ```
 #[macro_export]
 macro_rules! ioctl_iow_nr {
     ($name:ident, $ty:expr, $nr:expr, $size:ty) => {
@@ -103,6 +141,12 @@ macro_rules! ioctl_iow_nr {
 }
 
 /// Declare an ioctl that reads and writes data.
+///
+/// ```
+/// # #[macro_use] extern crate vmm_sys_util;
+/// const VHOST: ::std::os::raw::c_uint = 0xAF;
+/// ioctl_iowr_nr!(VHOST_GET_VRING_BASE, VHOST, 0x12, ::std::os::raw::c_int);
+/// ```
 #[macro_export]
 macro_rules! ioctl_iowr_nr {
     ($name:ident, $ty:expr, $nr:expr, $size:ty) => {
@@ -154,17 +198,107 @@ type IoctlRequest = c_int;
 #[cfg(not(target_env = "musl"))]
 type IoctlRequest = c_ulong;
 
-/// Run an ioctl with no arguments.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with no arguments.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// #[macro_use] extern crate vmm_sys_util;
+/// #
+/// # use libc::{open, O_CLOEXEC, O_RDWR};
+/// # use std::fs::File;
+/// # use std::os::raw::{c_char, c_uint};
+/// # use std::os::unix::io::FromRawFd;
+/// use vmm_sys_util::ioctl::ioctl;
+///
+/// const KVMIO: c_uint = 0xAE;
+/// const KVM_API_VERSION: u32 = 12;
+/// ioctl_io_nr!(KVM_GET_API_VERSION, KVMIO, 0x00);
+///
+/// let open_flags = O_RDWR | O_CLOEXEC;
+/// let kvm_fd = unsafe { open("/dev/kvm\0".as_ptr() as *const c_char, open_flags) };
+///
+/// let ret = unsafe { ioctl(&File::from_raw_fd(kvm_fd), KVM_GET_API_VERSION()) };
+///
+/// assert_eq!(ret as u32, KVM_API_VERSION);
+/// ```
 pub unsafe fn ioctl<F: AsRawFd>(fd: &F, req: c_ulong) -> c_int {
     libc::ioctl(fd.as_raw_fd(), req as IoctlRequest, 0)
 }
 
-/// Run an ioctl with a single value argument.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with a single value argument.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+/// * `arg`: a single value passed to ioctl.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// #[macro_use] extern crate vmm_sys_util;
+/// # use libc::{open, O_CLOEXEC, O_RDWR};
+/// # use std::fs::File;
+/// # use std::os::raw::{c_char, c_uint, c_ulong};
+/// # use std::os::unix::io::FromRawFd;
+/// use vmm_sys_util::ioctl::ioctl_with_val;
+///
+/// const KVMIO: c_uint = 0xAE;
+/// const KVM_CAP_USER_MEMORY: u32 = 3;
+/// ioctl_io_nr!(KVM_CHECK_EXTENSION, KVMIO, 0x03);
+///
+/// let open_flags = O_RDWR | O_CLOEXEC;
+/// let kvm_fd = unsafe { open("/dev/kvm\0".as_ptr() as *const c_char, open_flags) };
+///
+/// let ret = unsafe {
+///     ioctl_with_val(
+///         &File::from_raw_fd(kvm_fd),
+///         KVM_CHECK_EXTENSION(),
+///         KVM_CAP_USER_MEMORY as c_ulong,
+///     )
+/// };
+/// assert!(ret > 0);
+/// ```
 pub unsafe fn ioctl_with_val<F: AsRawFd>(fd: &F, req: c_ulong, arg: c_ulong) -> c_int {
     libc::ioctl(fd.as_raw_fd(), req as IoctlRequest, arg)
 }
 
-/// Run an ioctl with an immutable reference.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with an immutable reference.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+/// * `arg`: an immutable reference passed to ioctl.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
 pub unsafe fn ioctl_with_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &T) -> c_int {
     libc::ioctl(
         fd.as_raw_fd(),
@@ -173,7 +307,20 @@ pub unsafe fn ioctl_with_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &T) -> c_
     )
 }
 
-/// Run an ioctl with a mutable reference.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with a mutable reference.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+/// * `arg`: a mutable reference passed to ioctl.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
 pub unsafe fn ioctl_with_mut_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &mut T) -> c_int {
     libc::ioctl(
         fd.as_raw_fd(),
@@ -182,12 +329,38 @@ pub unsafe fn ioctl_with_mut_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &mut 
     )
 }
 
-/// Run an ioctl with a raw pointer.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with a raw pointer.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+/// * `arg`: a raw pointer passed to ioctl.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
 pub unsafe fn ioctl_with_ptr<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: *const T) -> c_int {
     libc::ioctl(fd.as_raw_fd(), req as IoctlRequest, arg as *const c_void)
 }
 
-/// Run an ioctl with a mutable raw pointer.
+/// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
+/// with a mutable raw pointer.
+///
+/// # Arguments
+///
+/// * `fd`: an open file descriptor corresponding to the device on which
+/// to call the ioctl.
+/// * `req`: a device-dependent request code.
+/// * `arg`: a mutable raw pointer passed to ioctl.
+///
+/// # Safety
+///
+/// The caller should ensure to pass a valid file descriptor and have the
+/// return value checked.
 pub unsafe fn ioctl_with_mut_ptr<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: *mut T) -> c_int {
     libc::ioctl(fd.as_raw_fd(), req as IoctlRequest, arg as *mut c_void)
 }
