@@ -15,6 +15,7 @@ pub mod eventfd;
 pub mod fallocate;
 pub mod file_traits;
 pub mod poll;
+pub mod rand;
 pub mod seek_hole;
 pub mod signal;
 pub mod tempdir;
