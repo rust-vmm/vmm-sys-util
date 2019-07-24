@@ -4,33 +4,43 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Traits for replacing a range with a hole and writing zeroes in a file.
+
 use std::cmp::min;
 use std::fs::File;
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{Error, Result, Seek, SeekFrom, Write};
 
 use crate::fallocate::{fallocate, FallocateMode};
 
 /// A trait for deallocating space in a file.
 pub trait PunchHole {
     /// Replace a range of bytes with a hole.
-    fn punch_hole(&mut self, offset: u64, length: u64) -> io::Result<()>;
+    ///
+    /// # Arguments
+    ///
+    /// * `offset`: offset of the file where to replace with a hole.
+    /// * `length`: the bytes of a hole to replace with.
+    fn punch_hole(&mut self, offset: u64, length: u64) -> Result<()>;
 }
 
 impl PunchHole for File {
-    fn punch_hole(&mut self, offset: u64, length: u64) -> io::Result<()> {
+    fn punch_hole(&mut self, offset: u64, length: u64) -> Result<()> {
         fallocate(self, FallocateMode::PunchHole, true, offset, length as u64)
-            .map_err(|e| io::Error::from_raw_os_error(e.errno()))
+            .map_err(|e| Error::from_raw_os_error(e.errno()))
     }
 }
 
 /// A trait for writing zeroes to a stream.
 pub trait WriteZeroes {
-    /// Write `length` bytes of zeroes to the stream, returning how many bytes were written.
-    fn write_zeroes(&mut self, length: usize) -> io::Result<usize>;
+    /// Write zeroes to a stream.
+    ///
+    /// Write `length` bytes of zeroes to the stream, returning how many
+    /// bytes were written.
+    fn write_zeroes(&mut self, length: usize) -> Result<usize>;
 }
 
 impl<T: PunchHole + Seek + Write> WriteZeroes for T {
-    fn write_zeroes(&mut self, length: usize) -> io::Result<usize> {
+    fn write_zeroes(&mut self, length: usize) -> Result<usize> {
         // Try to punch a hole first.
         let offset = self.seek(SeekFrom::Current(0))?;
         if let Ok(()) = self.punch_hole(offset, length as u64) {
