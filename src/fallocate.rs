@@ -1,13 +1,53 @@
+//! Enum and function for dealing with an allocated disk space
+//! by [`fallocate`](http://man7.org/linux/man-pages/man2/fallocate.2.html).
+
 use std::os::unix::io::AsRawFd;
 
 use crate::errno::{errno_result, Error, Result};
 
+/// Operation to be performed on a given range when calling [`fallocate`]
+///
+/// [`fallocate`]: fn.fallocate.html
 pub enum FallocateMode {
+    /// Deallocating file space.
     PunchHole,
+    /// Zeroing file space.
     ZeroRange,
 }
 
-/// Safe wrapper for `fallocate()`.
+/// A safe wrapper for [`fallocate`](http://man7.org/linux/man-pages/man2/fallocate.2.html).
+///
+/// Manipulate the file space with specified operation parameters.
+///
+/// # Arguments
+///
+/// * `file`: the file to be manipulate.
+/// * `mode`: specify the operation to be performed on the given range.
+/// * `keep_size`: file size won't be changed even if `offset` + `len` is greater
+/// than the file size.
+/// * `offset`: the position that manipulates the file from.
+/// * `size`: the bytes of the operation range.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// # use std::fs::OpenOptions;
+/// # use std::path::PathBuf;
+/// use vmm_sys_util::fallocate::{fallocate, FallocateMode};
+/// use vmm_sys_util::tempdir::TempDir;
+///
+/// let tempdir = TempDir::new("/tmp/fallocate_test").unwrap();
+/// let mut path = PathBuf::from(tempdir.as_path().unwrap());
+/// path.push("file");
+/// let mut f = OpenOptions::new()
+///     .read(true)
+///     .write(true)
+///     .create(true)
+///     .open(&path)
+///     .unwrap();
+/// fallocate(&f, FallocateMode::PunchHole, true, 0, 1).unwrap();
+/// ```
 pub fn fallocate(
     file: &dyn AsRawFd,
     mode: FallocateMode,
