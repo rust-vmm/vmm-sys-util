@@ -5,21 +5,36 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-BSD-3-Clause file.
 
+//! Structure and wrapper functions for working with
+//! [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
+
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::{io, mem, result};
 
 use libc::{c_void, dup, eventfd, read, write};
 
-/// A safe wrapper around a Linux eventfd (man 2 eventfd).
+/// A safe wrapper around Linux
+/// [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
 pub struct EventFd {
     eventfd: File,
 }
 
 impl EventFd {
-    /// Creates a new blocking EventFd with an initial value.
+    /// Create a new EventFd with an initial value.
     ///
-    /// `flag`: The initial value. Refer to Linux eventfd(2).
+    /// # Arguments
+    ///
+    /// * `flag`: The initial value used for creating the `EventFd`.
+    /// Refer to Linux [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    ///
+    /// EventFd::new(libc::EFD_NONBLOCK).unwrap();
+    /// ```
     pub fn new(flag: i32) -> result::Result<EventFd, io::Error> {
         // This is safe because eventfd merely allocated an eventfd for
         // our process and we handle the error case.
@@ -35,7 +50,28 @@ impl EventFd {
         }
     }
 
-    /// Adds `v` to the eventfd's count, does not block if the result will overflow the count
+    /// Add a value to the eventfd's counter.
+    ///
+    /// When the addition causes the counter overflow, this would either block
+    /// until a [`read`](http://man7.org/linux/man-pages/man2/read.2.html) is
+    /// performed on the file descriptor, or fail with the
+    /// error EAGAIN if the file descriptor has been made nonblocking.
+    ///
+    /// # Arguments
+    ///
+    /// * `v`: the value to be added to the eventfd's counter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate libc;
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// # use libc::EFD_NONBLOCK;
+    ///
+    /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
+    /// evt.write(55).unwrap();
+    /// ```
     pub fn write(&self, v: u64) -> result::Result<(), io::Error> {
         // This is safe because we made this fd and the pointer we pass
         // can not overflow because we give the syscall's size parameter properly.
@@ -53,7 +89,24 @@ impl EventFd {
         }
     }
 
-    /// Tries to read from the eventfd, does not block if the counter is zero
+    /// Read a value from the eventfd.
+    ///
+    /// If the counter is zero, this would either block
+    /// until the counter becomes nonzero, or fail with the
+    /// error EAGAIN if the file descriptor has been made nonblocking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate libc;
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// # use libc::EFD_NONBLOCK;
+    ///
+    /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
+    /// evt.write(55).unwrap();
+    /// assert_eq!(evt.read().unwrap(), 55);
+    /// ```
     pub fn read(&self) -> result::Result<u64, io::Error> {
         let mut buf: u64 = 0;
         let ret = unsafe {
@@ -72,8 +125,24 @@ impl EventFd {
         }
     }
 
-    /// Clones this EventFd, internally creating a new file descriptor. The new EventFd will share
-    /// the same underlying count within the kernel.
+    /// Clone this EventFd.
+    ///
+    /// This internally creates a new file descriptor and it will share the same
+    /// underlying count within the kernel.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate libc;
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// # use libc::EFD_NONBLOCK;
+    ///
+    /// let evt = EventFd::new(EFD_NONBLOCK).unwrap();
+    /// let evt_clone = evt.try_clone().unwrap();
+    /// evt.write(923).unwrap();
+    /// assert_eq!(evt_clone.read().unwrap(), 923);
+    /// ```
     pub fn try_clone(&self) -> result::Result<EventFd, io::Error> {
         // This is safe because we made this fd and properly check that it returns without error.
         let ret = unsafe { dup(self.as_raw_fd()) };
