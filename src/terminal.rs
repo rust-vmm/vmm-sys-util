@@ -8,6 +8,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-BSD-3-Clause file.
 
+//! Trait for working with [`termios`](http://man7.org/linux/man-pages/man3/termios.3.html).
+
 use std::io::StdinLock;
 use std::mem::zeroed;
 use std::os::unix::io::RawFd;
@@ -61,28 +63,40 @@ fn set_flags(fd: RawFd, flags: c_int) -> Result<()> {
     Ok(())
 }
 
-/// Trait for file descriptors that are TTYs, according to `isatty(3)`.
+/// Trait for file descriptors that are TTYs, according to
+/// [`isatty`](http://man7.org/linux/man-pages/man3/isatty.3.html).
 ///
-/// This is marked unsafe because the implementation must promise that the returned RawFd is a valid
-/// fd and that the lifetime of the returned fd is at least that of the trait object.
+/// This is marked unsafe because the implementation must ensure that the returned
+/// RawFd is a valid fd and that the lifetime of the returned fd is at least that
+/// of the trait object.
 pub unsafe trait Terminal {
-    /// Gets the file descriptor of the TTY.
+    /// Get the file descriptor of the TTY.
     fn tty_fd(&self) -> RawFd;
 
-    /// Set this terminal's mode to canonical mode (`ICANON | ECHO | ISIG`).
+    /// Set this terminal to canonical mode (`ICANON | ECHO | ISIG`).
+    ///
+    /// Enable canonical mode with `ISIG` that generates signal when receiving
+    /// any of the characters INTR, QUIT, SUSP, or DSUSP, and with `ECHO` that echo
+    /// the input characters. Refer to
+    /// [`termios`](http://man7.org/linux/man-pages/man3/termios.3.html).
     fn set_canon_mode(&self) -> Result<()> {
         modify_mode(self.tty_fd(), |t| t.c_lflag |= ICANON | ECHO | ISIG)
     }
 
-    /// Set this terminal's mode to raw mode (`!(ICANON | ECHO | ISIG)`).
+    /// Set this terminal to raw mode.
+    ///
+    /// Unset the canonical mode with (`!(ICANON | ECHO | ISIG)`) which means
+    /// input is available character by character, echoing is disabled and special
+    /// signal of receiving characters INTR, QUIT, SUSP, or DSUSP is disabled.
     fn set_raw_mode(&self) -> Result<()> {
         modify_mode(self.tty_fd(), |t| t.c_lflag &= !(ICANON | ECHO | ISIG))
     }
 
-    /// Sets the non-blocking mode of this terminal's file descriptor.
+    /// Set this terminal to non-blocking mode.
     ///
-    /// If `non_block` is `true`, then `read_raw` will not block. If `non_block` is `false`, then
-    /// `read_raw` may block if there is nothing to read.
+    /// If `non_block` is `true`, then `read_raw` will not block.
+    /// If `non_block` is `false`, then `read_raw` may block if
+    /// there is nothing to read.
     fn set_non_block(&self, non_block: bool) -> Result<()> {
         let old_flags = get_flags(self.tty_fd())?;
         let new_flags = if non_block {
@@ -96,10 +110,28 @@ pub unsafe trait Terminal {
         Ok(())
     }
 
-    /// Reads up to `out.len()` bytes from this terminal without any buffering.
+    /// Read from a [`Terminal`](trait.Terminal.html).
     ///
-    /// This may block, depending on if non-blocking was enabled with `set_non_block` or if there
-    /// are any bytes to read. If there is at least one byte that is readable, this will not block.
+    /// Read up to `out.len()` bytes from this terminal without any buffering.
+    /// This may block, depending on if non-blocking was enabled with `set_non_block`
+    /// or if there are any bytes to read.
+    /// If there is at least one byte that is readable, this will not block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::io;
+    /// # use std::os::unix::io::RawFd;
+    /// use vmm_sys_util::terminal::Terminal;
+    ///
+    /// let stdin_handle = io::stdin();
+    /// let stdin = stdin_handle.lock();
+    /// assert!(stdin.set_non_block(true).is_ok());
+    ///
+    /// let mut out = [0u8; 0];
+    /// assert_eq!(stdin.read_raw(&mut out[..]).unwrap(), 0);
+    /// ```
     fn read_raw(&self, out: &mut [u8]) -> Result<usize> {
         // Safe because read will only modify the pointer up to the length we give it and we check
         // the return result.
