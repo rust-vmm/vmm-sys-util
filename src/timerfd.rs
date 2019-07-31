@@ -5,6 +5,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-BSD-3-clause file.
 
+//! Structure and functions for working with
+//! [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
+
 use std::fs::File;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
@@ -15,13 +18,16 @@ use libc::{self, timerfd_create, timerfd_gettime, timerfd_settime, CLOCK_MONOTON
 
 use crate::errno::{errno_result, Result};
 
-/// A safe wrapper around a Linux timerfd (man 2 timerfd_create).
+/// A safe wrapper around a Linux
+/// [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
 pub struct TimerFd(File);
 
 impl TimerFd {
-    /// Creates a new [`TimerFd`](struct.TimerFd.html).
+    /// Create a new [`TimerFd`](struct.TimerFd.html).
     ///
-    /// The timer is initally disarmed and must be armed by calling [`reset`](fn.reset.html).
+    /// This creates a nonsettable monotonically increasing clock that does not
+    /// change after system startup. The timer is initally disarmed and must be
+    /// armed by calling [`reset`](fn.reset.html).
     pub fn new() -> Result<TimerFd> {
         // Safe because this doesn't modify any memory and we check the return value.
         let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
@@ -33,10 +39,31 @@ impl TimerFd {
         Ok(TimerFd(unsafe { File::from_raw_fd(ret) }))
     }
 
-    /// Sets the timer to expire after `dur`.
+    /// Arm the [`TimerFd`](struct.TimerFd.html).
     ///
-    /// If `interval` is not `None` it represents the period for repeated expirations after the
-    /// initial expiration. Otherwise the timer will expire just once.  Cancels any existing duration and repeating interval.
+    /// Set the timer to expire after `dur`.
+    ///
+    /// # Arguments
+    ///
+    /// * `dur`: Specify the initial expiration of the timer.
+    /// * `interval`: Specify the period for repeated expirations, depending on the
+    /// value passed. If `interval` is not `None`, it represents the period after
+    /// the initial expiration. Otherwise the timer will expire just once. Cancels
+    /// any existing duration and repeating interval.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::time::Duration;
+    /// use vmm_sys_util::timerfd::TimerFd;
+    ///
+    /// let mut timer = TimerFd::new().unwrap();
+    /// let dur = Duration::from_millis(100);
+    /// let interval = Duration::from_millis(100);
+    ///
+    /// timer.reset(dur, Some(interval)).unwrap();
+    /// ```
     pub fn reset(&mut self, dur: Duration, interval: Option<Duration>) -> Result<()> {
         // Safe because we are zero-initializing a struct with only primitive member fields.
         let mut spec: libc::itimerspec = unsafe { mem::zeroed() };
@@ -61,11 +88,29 @@ impl TimerFd {
         Ok(())
     }
 
-    /// Waits until the timer expires.
+    /// Wait until the timer expires.
     ///
-    /// The return value represents the number of times the timer
-    /// has expired since the last time `wait` was called.  If the timer has not yet expired once
+    /// The return value represents the number of times the timer has expired since
+    /// the last time `wait` was called. If the timer has not yet expired once,
     /// this call will block until it does.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::time::Duration;
+    /// # use std::thread::sleep;
+    /// use vmm_sys_util::timerfd::TimerFd;
+    ///
+    /// let mut timer = TimerFd::new().unwrap();
+    /// let dur = Duration::from_millis(100);
+    /// let interval = Duration::from_millis(100);
+    /// timer.reset(dur, Some(interval)).unwrap();
+    ///
+    /// sleep(dur * 3);
+    /// let count = timer.wait().unwrap();
+    /// assert!(count >= 3);
+    /// ```
     pub fn wait(&mut self) -> Result<u64> {
         let mut count = 0u64;
 
@@ -86,7 +131,24 @@ impl TimerFd {
         Ok(count)
     }
 
-    /// Returns `true` if the timer is currently armed.
+    /// Tell if the timer is armed.
+    ///
+    /// Returns `Ok(true)` if the timer is currently armed, otherwise the errno set by
+    /// [`timerfd_gettime`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::time::Duration;
+    /// use vmm_sys_util::timerfd::TimerFd;
+    ///
+    /// let mut timer = TimerFd::new().unwrap();
+    /// let dur = Duration::from_millis(100);
+    ///
+    /// timer.reset(dur, None).unwrap();
+    /// assert!(timer.is_armed().unwrap());
+    /// ```
     pub fn is_armed(&self) -> Result<bool> {
         // Safe because we are zero-initializing a struct with only primitive member fields.
         let mut spec: libc::itimerspec = unsafe { mem::zeroed() };
@@ -100,7 +162,24 @@ impl TimerFd {
         Ok(spec.it_value.tv_sec != 0 || spec.it_value.tv_nsec != 0)
     }
 
-    /// Disarms the timer.
+    /// Disarm the timer.
+    ///
+    /// Set zero to disarm the timer, referring to
+    /// [`timerfd_settime`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::time::Duration;
+    /// use vmm_sys_util::timerfd::TimerFd;
+    ///
+    /// let mut timer = TimerFd::new().unwrap();
+    /// let dur = Duration::from_millis(100);
+    ///
+    /// timer.reset(dur, None).unwrap();
+    /// timer.clear().unwrap();
+    /// ```
     pub fn clear(&mut self) -> Result<()> {
         // Safe because we are zero-initializing a struct with only primitive member fields.
         let spec: libc::itimerspec = unsafe { mem::zeroed() };
