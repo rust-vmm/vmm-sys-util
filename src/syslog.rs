@@ -553,24 +553,23 @@ mod tests {
     use std::os::unix::io::FromRawFd;
 
     #[test]
-    fn test_init_syslog() {
+    // NOTE!!! We cannot have separate unit tests for separate functions
+    // because this would imply calling `init()` more than once in the same
+    // process. This had a weird behaviour in the past making random tests
+    // failing intermittently.
+    fn test_syslog() {
         init().unwrap();
-    }
 
-    #[test]
-    fn test_fds() {
-        init().unwrap();
+        // Test FDs owned by syslogger are valid.
         let mut fds = Vec::new();
         push_fds(&mut fds);
         assert!(!fds.is_empty());
         for fd in fds {
             assert!(fd >= 0);
         }
-    }
 
-    #[test]
-    fn test_syslog_log() {
-        init().unwrap();
+        // Test log macro and set_proc_name.
+        // TODO: Check that the log file actually has the log entries.
         log(
             Priority::Error,
             Facility::User,
@@ -578,11 +577,7 @@ mod tests {
             line!(),
             format_args!("hello syslog"),
         );
-    }
 
-    #[test]
-    fn test_proc_name() {
-        init().unwrap();
         log(
             Priority::Error,
             Facility::User,
@@ -590,6 +585,9 @@ mod tests {
             line!(),
             format_args!("before proc name"),
         );
+
+        // Test `set_proc_name`.
+        // TODO: Check that the log entry contains "sys_util-test".
         set_proc_name("sys_util-test");
         log(
             Priority::Error,
@@ -598,12 +596,8 @@ mod tests {
             line!(),
             format_args!("after proc name"),
         );
-    }
 
-    #[test]
-    #[allow(clippy::zero_prefixed_literal)]
-    fn test_syslog_file() {
-        init().unwrap();
+        // Test syslog file.
         let shm_name = CStr::from_bytes_with_nul(b"/crosvm_shm\0").unwrap();
         let mut file = unsafe {
             shm_unlink(shm_name.as_ptr());
@@ -630,11 +624,8 @@ mod tests {
         file.read_to_string(&mut buf)
             .expect("error reading shared memory file");
         assert!(buf.contains(TEST_STR));
-    }
 
-    #[test]
-    fn test_macros() {
-        init().unwrap();
+        // Test Macros. TODO: Check the log entries.
         error!("this is an error {}", 3);
         warn!("this is a warning {}", "uh oh");
         info!("this is info {}", true);
