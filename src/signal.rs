@@ -6,6 +6,9 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
+//! Enums, traits and functions for working with
+//! [`signal`](http://man7.org/linux/man-pages/man7/signal.7.html).
+
 use libc::{
     c_int, c_void, pthread_kill, pthread_sigmask, pthread_t, sigaction, sigaddset, sigemptyset,
     siginfo_t, sigismember, sigpending, sigset_t, sigtimedwait, timespec, EAGAIN, EINTR, EINVAL,
@@ -21,6 +24,7 @@ use std::ptr::{null, null_mut};
 use std::result;
 use std::thread::JoinHandle;
 
+/// The error cases enumeration for signal handling.
 #[derive(Debug)]
 pub enum Error {
     /// Couldn't create a sigset.
@@ -73,12 +77,17 @@ impl Display for Error {
     }
 }
 
+/// A simplified [Result](https://doc.rust-lang.org/std/result/enum.Result.html) type
+/// for operations that can return [`Error`](Enum.error.html).
 pub type SignalResult<T> = result::Result<T, Error>;
 type SiginfoHandler = extern "C" fn(num: c_int, info: *mut siginfo_t, _unused: *mut c_void) -> ();
 
+/// Enum of signal handlers for
+/// [`sigaction`](http://man7.org/linux/man-pages/man2/sigaction.2.html).
 pub enum SignalHandler {
+    /// Corresponds to the `sa_sigaction` member of
+    /// [`sigaction`](http://man7.org/linux/man-pages/man2/sigaction.2.html).
     Siginfo(SiginfoHandler),
-    // TODO add a`SimpleHandler` when `libc` adds `sa_handler` support to `sigaction`.
 }
 
 impl SignalHandler {
@@ -86,8 +95,9 @@ impl SignalHandler {
         act.sa_flags = flag;
     }
 }
-/// Fills a `sigaction` structure from of the signal handler.
-/// Refer to http://man7.org/linux/man-pages/man7/signal.7.html
+
+/// Convert a [`SignalHandler`](enum.SignalHandler.html) into a
+/// [`sigaction`](http://man7.org/linux/man-pages/man2/sigaction.2.html)
 impl Into<sigaction> for SignalHandler {
     fn into(self) -> sigaction {
         let mut act: sigaction = unsafe { mem::zeroed() };
@@ -105,21 +115,28 @@ extern "C" {
     fn __libc_current_sigrtmax() -> c_int;
 }
 
-/// Returns the minimum (inclusive) real-time signal number.
+/// Return the minimum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
 fn SIGRTMIN() -> c_int {
     unsafe { __libc_current_sigrtmin() }
 }
 
-/// Returns the maximum (inclusive) real-time signal number.
+/// Return the maximum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
 fn SIGRTMAX() -> c_int {
     unsafe { __libc_current_sigrtmax() }
 }
 
-/// Verifies that a signal number is valid: for VCPU signals, it needs to be enclosed within the OS
-/// limits for realtime signals, and the remaining ones need to be between the minimum (SIGHUP) and
-/// maximum (SIGSYS) values.
+/// Verify that a signal number is valid.
+///
+/// VCPU signals must be enclosed within the OS
+/// limits for realtime signals. The remaining ones need
+/// to be between the minimum (`SIGHUP`) and maximum (`SIGSYS`) values.
+///
+/// # Arguments
+///
+/// * `num`: the signal number to be verify.
+/// * `for_vcpu`: if `num` is a vcpu signal.
 pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
     if for_vcpu {
         let actual_num = num + SIGRTMIN();
@@ -132,13 +149,21 @@ pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
     Err(errno::Error::new(EINVAL))
 }
 
-/// Registers `handler` as the signal handler of signum `num`.
+/// Register the signal handler of `signum`.
 ///
-/// Uses `sigaction` to register the handler.
+/// # Safety
 ///
-/// This is considered unsafe because the given handler will be called asynchronously, interrupting
-/// whatever the thread was doing and therefore must only do async-signal-safe operations.
-/// flags: SA_SIGINFO or SA_RESTART if wants to restart after signal received.
+/// This is considered unsafe because the given handler will be called
+/// asynchronously, interrupting whatever the thread was doing and therefore
+/// must only do async-signal-safe operations.
+///
+/// # Arguments
+///
+/// * `num`: the signal number to be registered.
+/// * `handler`: the signal handler function to register.
+/// * `for_vcpu`: whether `num` is a vcpu signal.
+/// * `flag`: specify the behavior of the signal.
+///    Set SA_SIGINFO or SA_RESTART if wants to restart after signal received.
 pub unsafe fn register_signal_handler(
     num: i32,
     handler: SignalHandler,
@@ -154,9 +179,15 @@ pub unsafe fn register_signal_handler(
     }
 }
 
-/// Creates `sigset` from an array of signal numbers.
+/// Create a `sigset` with given signals.
 ///
+/// An array of signal numbers are added into the signal set by
+/// [`sigaddset`](http://man7.org/linux/man-pages/man3/sigaddset.3p.html).
 /// This is a helper function used when we want to manipulate signals.
+///
+/// # Arguments
+///
+/// * `signals`: signal numbers to be added to the new `sigset`.
 pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
     // sigset will actually be initialized by sigemptyset below.
     let mut sigset: sigset_t = unsafe { mem::zeroed() };
@@ -178,7 +209,11 @@ pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
     Ok(sigset)
 }
 
-/// Retrieves the signal mask of the current thread as a vector of c_ints.
+/// Retrieve the signal mask that is blocked of the current thread.
+///
+/// Use [`pthread_sigmask`](http://man7.org/linux/man-pages/man3/pthread_sigmask.3.html)
+/// to fetch the signal mask which is blocked for the caller, return the signal mask as
+/// a vector of c_int.
 pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
     let mut mask = Vec::new();
 
@@ -200,10 +235,15 @@ pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
     Ok(mask)
 }
 
-/// Masks given signal.
+/// Mask a given signal.
 ///
-/// If signal is already blocked the call will fail with Error::SignalAlreadyBlocked
-/// result.
+/// Set the given signal `num` as blocked.
+/// If signal is already blocked, the call will fail with
+/// [`SignalAlreadyBlocked`](enum.Error.html#variant.SignalAlreadyBlocked).
+///
+/// # Arguments
+///
+/// * `num`: the signal to be masked.
 pub fn block_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
@@ -214,6 +254,7 @@ pub fn block_signal(num: c_int) -> SignalResult<()> {
         if ret < 0 {
             return Err(Error::BlockSignal(errno::Error::last()));
         }
+        // Check if the given signal is already blocked.
         let ret = sigismember(&old_sigset, num);
         if ret < 0 {
             return Err(Error::CompareBlockedSignals(errno::Error::last()));
@@ -224,7 +265,11 @@ pub fn block_signal(num: c_int) -> SignalResult<()> {
     Ok(())
 }
 
-/// Unmasks given signal.
+/// Unmask a given signal.
+///
+/// # Arguments
+///
+/// * `num`: the signal to be unmasked.
 pub fn unblock_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
@@ -236,7 +281,11 @@ pub fn unblock_signal(num: c_int) -> SignalResult<()> {
     Ok(())
 }
 
-/// Clears pending signal.
+/// Clear a pending signal.
+///
+/// # Arguments
+///
+/// * `num`: the signal to be cleared.
 pub fn clear_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
@@ -285,22 +334,29 @@ pub fn clear_signal(num: c_int) -> SignalResult<()> {
 
 /// Trait for threads that can be signalled via `pthread_kill`.
 ///
-/// Note that this is only useful for signals between SIGRTMIN and SIGRTMAX because these are
-/// guaranteed to not be used by the C runtime.
+/// Note that this is only useful for signals between `SIGRTMIN` and `SIGRTMAX`
+/// because these are guaranteed to not be used by the C runtime.
 ///
-/// This is marked unsafe because the implementation of this trait must guarantee that the returned
-/// pthread_t is valid and has a lifetime at least that of the trait object.
+/// # Safety
+///
+/// This is marked unsafe because the implementation of this trait must
+/// guarantee that the returned `pthread_t` is valid and has a lifetime at
+/// least that of the trait object.
 pub unsafe trait Killable {
+    /// Cast this killable thread as `pthread_t`.
     fn pthread_handle(&self) -> pthread_t;
 
-    /// Sends the signal `num + SIGRTMIN` to this killable thread.
+    /// Send a signal to this killable thread.
     ///
-    /// The value of `num + SIGRTMIN` must not exceed `SIGRTMAX`.
+    /// # Arguments
+    ///
+    /// * `num`: specify the signal and `num + SIGRTMIN` will be sent.
+    /// Note the value of `num + SIGRTMIN` must not exceed `SIGRTMAX`.
     fn kill(&self, num: i32) -> errno::Result<()> {
         let num = validate_signal_num(num, true)?;
 
-        // Safe because we ensure we are using a valid pthread handle, a valid signal number, and
-        // check the return result.
+        // Safe because we ensure we are using a valid pthread handle,
+        // a valid signal number, and check the return result.
         let ret = unsafe { pthread_kill(self.pthread_handle(), num) };
         if ret < 0 {
             return errno::errno_result();
