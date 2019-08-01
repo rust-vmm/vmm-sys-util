@@ -219,6 +219,19 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    fn test_from_raw_fd() {
+        let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
+        let tfd = unsafe { TimerFd::from_raw_fd(ret) };
+        assert_eq!(tfd.is_armed().unwrap(), false);
+    }
+
+    #[test]
+    fn test_into_raw_fd() {
+        let tfd = TimerFd::new().expect("failed to create timerfd");
+        let fd = tfd.into_raw_fd();
+        assert!(fd > 0);
+    }
+    #[test]
     fn test_one_shot() {
         let mut tfd = TimerFd::new().expect("failed to create timerfd");
         assert_eq!(tfd.is_armed().unwrap(), false);
@@ -233,6 +246,8 @@ mod tests {
 
         assert_eq!(count, 1);
         assert!(now.elapsed() >= dur);
+        tfd.clear().expect("unable to clear the timer");
+        assert_eq!(tfd.is_armed().unwrap(), false);
     }
 
     #[test]
@@ -247,6 +262,8 @@ mod tests {
 
         let count = tfd.wait().expect("unable to wait for timer");
         assert!(count >= 5, "count = {}", count);
+        tfd.clear().expect("unable to clear the timer");
+        assert_eq!(tfd.is_armed().unwrap(), false);
     }
 
 }
