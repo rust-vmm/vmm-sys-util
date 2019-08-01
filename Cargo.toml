@@ -1,8 +1,12 @@
 [package]
 name = "vmm-sys-util"
 version = "0.1.0"
-authors = ["Jing Liu <jing2.liu@linux.intel.com>"]
-license = "Apache-2.0"
+authors = ["Intel Virtualization Team <vmm-maintainers@intel.com>"]
+description = "A system utility set"
+repository = "https://github.com/rust-vmm/vmm-sys-util"
+readme = "README.md"
+keywords = ["utils"]
+license = "Apache-2.0 OR BSD-3-Clause"
 
 [dependencies]
 libc = ">=0.2.39"
