@@ -382,11 +382,21 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
+    // Reserve for each vcpu signal.
     static mut SIGNAL_HANDLER_CALLED: bool = false;
 
     extern "C" fn handle_signal(_: c_int, _: *mut siginfo_t, _: *mut c_void) {
         unsafe {
+            // In the tests, there only uses vcpu signal.
             SIGNAL_HANDLER_CALLED = true;
+        }
+    }
+
+    fn is_pending(signal: c_int) -> bool {
+        unsafe {
+            let mut chkset: sigset_t = mem::zeroed();
+            sigpending(&mut chkset);
+            sigismember(&chkset, signal) == 1
         }
     }
 
@@ -473,5 +483,49 @@ mod tests {
         // previous signal is effectively ignored. If we were to join killable here, we would block
         // forever as the loop keeps running. Since we don't join, the thread will become detached
         // as the handle is dropped, and will be killed when the process/main thread exits.
+    }
+
+    #[test]
+    fn test_block_unblock_signal() {
+        let signal = SIGRTMIN() + 0;
+
+        // Check if it is blocked.
+        unsafe {
+            let mut sigset: sigset_t = mem::zeroed();
+            pthread_sigmask(SIG_BLOCK, null(), &mut sigset as *mut sigset_t);
+            assert_eq!(sigismember(&sigset, signal), 0);
+        }
+
+        block_signal(signal).unwrap();
+        assert!(get_blocked_signals().unwrap().contains(&(signal)));
+
+        unblock_signal(signal).unwrap();
+        assert!(!get_blocked_signals().unwrap().contains(&(signal)));
+    }
+
+    #[test]
+    fn test_clear_pending() {
+        let signal = SIGRTMIN() + 1;
+
+        block_signal(signal).unwrap();
+
+        // Block the signal, which means it won't be delivered until it is
+        // unblocked. Pending between the time when the signal which is set as blocked
+        // is generated and when is delivered.
+        let killable = thread::spawn(move || {
+            loop {
+                // Wait for the signal being killed.
+                thread::sleep(Duration::from_millis(100));
+                if is_pending(signal) {
+                    clear_signal(signal).unwrap();
+                    assert!(!is_pending(signal));
+                    break;
+                }
+            }
+        });
+
+        // Send a signal to the thread.
+        assert!(killable.kill(1).is_ok());
+        killable.join().unwrap();
     }
 }
