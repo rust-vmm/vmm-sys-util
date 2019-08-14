@@ -20,6 +20,7 @@ pub mod rand;
 pub mod seek_hole;
 pub mod signal;
 pub mod tempdir;
+pub mod tempfile;
 pub mod terminal;
 pub mod timerfd;
 pub mod write_zeroes;
