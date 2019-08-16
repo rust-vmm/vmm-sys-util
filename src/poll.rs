@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
+//! Traits and structures for working with
+//! [`epoll`](http://man7.org/linux/man-pages/man7/epoll.7.html)
+
 use std::cell::{Cell, Ref, RefCell};
 use std::cmp::min;
 use std::fs::File;
@@ -38,10 +41,13 @@ macro_rules! handle_eintr_errno {
 
 const POLL_CONTEXT_MAX_EVENTS: usize = 16;
 
-/// EpollEvents wraps raw epoll_events, it should only be used with EpollContext.
+/// A wrapper of raw `libc::epoll_event`.
+///
+/// This should only be used with [`EpollContext`](struct.EpollContext.html).
 pub struct EpollEvents(RefCell<[epoll_event; POLL_CONTEXT_MAX_EVENTS]>);
 
 impl EpollEvents {
+    /// Creates a new EpollEvents.
     pub fn new() -> EpollEvents {
         EpollEvents(RefCell::new(
             [epoll_event { events: 0, u64: 0 }; POLL_CONTEXT_MAX_EVENTS],
@@ -55,7 +61,7 @@ impl Default for EpollEvents {
     }
 }
 
-/// Trait for a token that can be associated with an `fd` in a `PollContext`.
+/// Trait for a token that can be associated with an `fd` in a [`PollContext`](struct.PollContext.html).
 ///
 /// Simple enums that have no or primitive variant data can use the `#[derive(PollToken)]`
 /// custom derive to implement this trait.
@@ -129,30 +135,38 @@ impl PollToken for () {
     fn from_raw_token(_data: u64) -> Self {}
 }
 
-/// An event returned by `PollContext::wait`.
+/// An event returned by [`PollContext::wait`](struct.PollContext.html#method.wait).
 pub struct PollEvent<'a, T> {
     event: &'a epoll_event,
     token: PhantomData<T>, // Needed to satisfy usage of T
 }
 
 impl<'a, T: PollToken> PollEvent<'a, T> {
-    /// Gets the token associated in `PollContext::add` with this event.
+    /// Gets the token associated in
+    /// [`PollContext::add`](struct.PollContext.html#method.add) with this event.
     pub fn token(&self) -> T {
         T::from_raw_token(self.event.u64)
     }
 
-    /// True if the `fd` associated with this token in `PollContext::add` is readable.
+    /// Checks if the event is readable.
+    ///
+    /// True if the `fd` associated with this token in
+    /// [`PollContext::add`](struct.PollContext.html#method.add) is readable.
     pub fn readable(&self) -> bool {
         self.event.events & (EPOLLIN as u32) != 0
     }
 
-    /// True if the `fd` associated with this token in `PollContext::add` has been hungup on.
+    /// Checks if the event has been hangup on.
+    ///
+    /// True if the `fd` associated with this token in
+    /// [`PollContext::add`](struct.PollContext.html#method.add) has been hungup on.
     pub fn hungup(&self) -> bool {
         self.event.events & (EPOLLHUP as u32) != 0
     }
 }
 
-/// An iterator over some (sub)set of events returned by `PollContext::wait`.
+/// An iterator over a subset of events returned by
+/// [`PollContext::wait`](struct.PollContext.html#method.wait).
 pub struct PollEventIter<'a, I, T>
 where
     I: Iterator<Item = &'a epoll_event>,
@@ -179,7 +193,7 @@ where
     }
 }
 
-/// The list of event returned by `PollContext::wait`.
+/// The list of events returned by [`PollContext::wait`](struct.PollContext.html#method.wait).
 pub struct PollEvents<'a, T> {
     count: usize,
     events: Ref<'a, [epoll_event; POLL_CONTEXT_MAX_EVENTS]>,
@@ -187,8 +201,10 @@ pub struct PollEvents<'a, T> {
 }
 
 impl<'a, T: PollToken> PollEvents<'a, T> {
+    /// Creates owned structure from borrowed [`PollEvents`](struct.PollEvents.html).
+    ///
     /// Copies the events to an owned structure so the reference to this (and by extension
-    /// `PollContext`) can be dropped.
+    /// [`PollContext`](struct.PollContext.html)) can be dropped.
     pub fn to_owned(&self) -> PollEventsOwned<T> {
         PollEventsOwned {
             count: self.count,
@@ -225,7 +241,7 @@ impl<'a, T: PollToken> PollEvents<'a, T> {
     }
 }
 
-/// A deep copy of the event records from `PollEvents`.
+/// A deep copy of the event records from [`PollEvents`](struct.PollEvents.html).
 pub struct PollEventsOwned<T> {
     count: usize,
     events: RefCell<[epoll_event; POLL_CONTEXT_MAX_EVENTS]>,
@@ -233,7 +249,11 @@ pub struct PollEventsOwned<T> {
 }
 
 impl<T: PollToken> PollEventsOwned<T> {
-    /// Takes a reference to the events so that they can be iterated via methods in `PollEvents`.
+    /// Creates borrowed structure from owned structure
+    /// [`PollEventsOwned`](struct.PollEventsOwned.html).
+    ///
+    /// Takes a reference to the events so it can be iterated via methods in
+    /// [`PollEvents`](struct.PollEvents.html).
     pub fn as_ref(&self) -> PollEvents<T> {
         PollEvents {
             count: self.count,
@@ -243,44 +263,75 @@ impl<T: PollToken> PollEventsOwned<T> {
     }
 }
 
-/// Watching events taken by PollContext.
+/// Watching events taken by [`PollContext`](struct.PollContext.html).
 pub struct WatchingEvents(u32);
 
 impl WatchingEvents {
-    /// Returns empty Events.
+    /// Returns empty `WatchingEvents`.
     #[inline(always)]
     pub fn empty() -> WatchingEvents {
         WatchingEvents(0)
     }
 
-    /// Build Events from raw epoll events (defined in epoll_ctl(2)).
+    /// Creates a new `WatchingEvents` with a specified value.
+    ///
+    /// Builds `WatchingEvents` from raw `epoll_event`.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw`: the events to be created for watching.
     #[inline(always)]
     pub fn new(raw: u32) -> WatchingEvents {
         WatchingEvents(raw)
     }
 
-    /// Set read events.
+    /// Sets read events.
+    ///
+    /// Sets the events to be readable.
     #[inline(always)]
     pub fn set_read(self) -> WatchingEvents {
         WatchingEvents(self.0 | EPOLLIN as u32)
     }
 
-    /// Set write events.
+    /// Sets write events.
+    ///
+    /// Sets the events to be writable.
     #[inline(always)]
     pub fn set_write(self) -> WatchingEvents {
         WatchingEvents(self.0 | EPOLLOUT as u32)
     }
 
-    /// Get the underlying epoll events.
+    /// Gets the underlying epoll events.
     pub fn get_raw(&self) -> u32 {
         self.0
     }
 }
 
-/// EpollContext wraps linux epoll. It provides similar interface to PollContext.
+/// A wrapper of linux [`epoll`](http://man7.org/linux/man-pages/man7/epoll.7.html).
+///
+/// It provides similar interface to [`PollContext`](struct.PollContext.html).
 /// It is thread safe while PollContext is not. It requires user to pass in a reference of
 /// EpollEvents while PollContext does not. Always use PollContext if you don't need to access the
 /// same epoll from different threads.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::eventfd::EventFd;
+/// use vmm_sys_util::poll::{EpollContext, EpollEvents};
+///
+/// let evt = EventFd::new(0).unwrap();
+/// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+/// let events = EpollEvents::new();
+///
+/// evt.write(1).unwrap();
+/// ctx.add(&evt, 1).unwrap();
+///
+/// for event in ctx.wait(&events).unwrap().iter_readable() {
+///     assert_eq!(event.token(), 1);
+/// }
+/// ```
 pub struct EpollContext<T> {
     epoll_ctx: File,
     // Needed to satisfy usage of T
@@ -289,6 +340,18 @@ pub struct EpollContext<T> {
 
 impl<T: PollToken> EpollContext<T> {
     /// Creates a new `EpollContext`.
+    ///
+    /// Uses [`epoll_create1`](http://man7.org/linux/man-pages/man2/epoll_create.2.html)
+    /// to create a new epoll fd.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::poll::EpollContext;
+    ///
+    /// let ctx: EpollContext<usize> = EpollContext::new().unwrap();
+    /// ```
     pub fn new() -> Result<EpollContext<T>> {
         // Safe because we check the return value.
         let epoll_fd = unsafe { epoll_create1(EPOLL_CLOEXEC) };
@@ -301,22 +364,59 @@ impl<T: PollToken> EpollContext<T> {
         })
     }
 
-    /// Adds the given `fd` to this context and associates the given `token` with the `fd`'s
-    /// readable events.
+    /// Adds the given `fd` to this context and associates the given
+    /// `token` with the `fd`'s readable events.
     ///
-    /// A `fd` can only be added once and does not need to be kept open. If the `fd` is dropped and
-    /// there were no duplicated file descriptors (i.e. adding the same descriptor with a different
-    /// FD number) added to this context, events will not be reported by `wait` anymore.
+    /// A `fd` can only be added once and does not need to be kept open.
+    /// If the `fd` is dropped and there were no duplicated file descriptors
+    /// (i.e. adding the same descriptor with a different FD number) added
+    /// to this context, events will not be reported by `wait` anymore.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be added.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::EpollContext;
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// ctx.add(&evt, 1).unwrap();
+    /// ```
     pub fn add(&self, fd: &AsRawFd, token: T) -> Result<()> {
         self.add_fd_with_events(fd, WatchingEvents::empty().set_read(), token)
     }
 
-    /// Adds the given `fd` to this context, watching for the specified events and associates the
-    /// given 'token' with those events.
+    /// Adds the given `fd` to this context, watching for the specified `events`
+    /// and associates the given 'token' with those events.
     ///
-    /// A `fd` can only be added once and does not need to be kept open. If the `fd` is dropped and
-    /// there were no duplicated file descriptors (i.e. adding the same descriptor with a different
-    /// FD number) added to this context, events will not be reported by `wait` anymore.
+    /// A `fd` can only be added once and does not need to be kept open. If the `fd`
+    /// is dropped and there were no duplicated file descriptors (i.e. adding the same
+    /// descriptor with a different FD number) added to this context, events will
+    /// not be reported by `wait` anymore.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be added.
+    /// * `events`: specifies the events to be watched.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::{EpollContext, WatchingEvents};
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1).unwrap();
+    /// ```
     pub fn add_fd_with_events(&self, fd: &AsRawFd, events: WatchingEvents, token: T) -> Result<()> {
         let mut evt = epoll_event {
             events: events.get_raw(),
@@ -338,8 +438,29 @@ impl<T: PollToken> EpollContext<T> {
         Ok(())
     }
 
+    /// Changes the setting associated with the given `fd` in this context.
+    ///
     /// If `fd` was previously added to this context, the watched events will be replaced with
     /// `events` and the token associated with it will be replaced with the given `token`.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be performed.
+    /// * `events`: specifies the events to be watched.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::{EpollContext, WatchingEvents};
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1).unwrap();
+    /// ctx.modify(&evt, WatchingEvents::empty().set_write(), 2).unwrap();
+    /// ```
     pub fn modify(&self, fd: &AsRawFd, events: WatchingEvents, token: T) -> Result<()> {
         let mut evt = epoll_event {
             events: events.0,
@@ -367,6 +488,23 @@ impl<T: PollToken> EpollContext<T> {
     /// method or by closing/dropping (if and only if the fd was never dup()'d/fork()'d) the `fd`.
     /// Failure to do so will cause the `wait` method to always return immediately, causing ~100%
     /// CPU load.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be removed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::EpollContext;
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// ctx.add(&evt, 1).unwrap();
+    /// ctx.delete(&evt).unwrap();
+    /// ```
     pub fn delete(&self, fd: &AsRawFd) -> Result<()> {
         // Safe because we give a valid epoll FD and FD to stop watching. Then we check the return
         // value.
@@ -391,14 +529,62 @@ impl<T: PollToken> EpollContext<T> {
     /// return immediately. The consequence of not handling an event perpetually while calling
     /// `wait` is that the callers loop will degenerated to busy loop polling, pinning a CPU to
     /// ~100% usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `events`: the events to wait for.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// let events = EpollEvents::new();
+    ///
+    /// evt.write(1).unwrap();
+    /// ctx.add(&evt, 1).unwrap();
+    ///
+    /// for event in ctx.wait(&events).unwrap().iter_readable() {
+    ///     assert_eq!(event.token(), 1);
+    /// }
+    /// ```
     pub fn wait<'a>(&self, events: &'a EpollEvents) -> Result<PollEvents<'a, T>> {
         self.wait_timeout(events, Duration::new(i64::MAX as u64, 0))
     }
 
-    /// Like `wait` except will only block for a maximum of the given `timeout`.
+    /// Like [`wait`](struct.EpollContext.html#method.wait) except will only block for a
+    /// maximum of the given `timeout`.
     ///
     /// This may return earlier than `timeout` with zero events if the duration indicated exceeds
     /// system limits.
+    ///
+    /// # Arguments
+    ///
+    /// * `events`: the events to wait for.
+    /// * `timeout`: specifies the timeout that will block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate vmm_sys_util;
+    /// # use std::time::Duration;
+    /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
+    /// use vmm_sys_util::eventfd::EventFd;
+    ///
+    /// let evt = EventFd::new(0).unwrap();
+    /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
+    /// let events = EpollEvents::new();
+    ///
+    /// evt.write(1).unwrap();
+    /// ctx.add(&evt, 1).unwrap();
+    /// for event in ctx.wait_timeout(&events, Duration::new(100, 0)).unwrap().iter_readable() {
+    ///     assert_eq!(event.token(), 1);
+    /// }
+    /// ```
     pub fn wait_timeout<'a>(
         &self,
         events: &'a EpollEvents,
@@ -465,20 +651,17 @@ impl<T: PollToken> IntoRawFd for EpollContext<T> {
 /// # use vmm_sys_util::errno::Result;
 /// # use vmm_sys_util::eventfd::EventFd;
 /// # use vmm_sys_util::poll::{PollContext, PollEvents};
-/// fn test() -> Result<()> {
-///     let evt1 = EventFd::new(0)?;
-///     let evt2 = EventFd::new(0)?;
-///     evt2.write(1)?;
+/// let evt1 = EventFd::new(0).unwrap();
+/// let evt2 = EventFd::new(0).unwrap();
+/// evt2.write(1).unwrap();
 ///
-///     let ctx: PollContext<u32> = PollContext::new()?;
-///     ctx.add(&evt1, 1)?;
-///     ctx.add(&evt2, 2)?;
+/// let ctx: PollContext<u32> = PollContext::new().unwrap();
+/// ctx.add(&evt1, 1).unwrap();
+/// ctx.add(&evt2, 2).unwrap();
 ///
-///     let pollevents: PollEvents<u32> = ctx.wait()?;
-///     let tokens: Vec<u32> = pollevents.iter_readable().map(|e| e.token()).collect();
-///     assert_eq!(&tokens[..], &[2]);
-///   Ok(())
-/// }
+/// let pollevents: PollEvents<u32> = ctx.wait().unwrap();
+/// let tokens: Vec<u32> = pollevents.iter_readable().map(|e| e.token()).collect();
+/// assert_eq!(&tokens[..], &[2]);
 /// ```
 pub struct PollContext<T> {
     epoll_ctx: EpollContext<T>,
@@ -513,6 +696,11 @@ impl<T: PollToken> PollContext<T> {
     /// A `fd` can only be added once and does not need to be kept open. If the `fd` is dropped and
     /// there were no duplicated file descriptors (i.e. adding the same descriptor with a different
     /// FD number) added to this context, events will not be reported by `wait` anymore.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be added.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
     pub fn add(&self, fd: &AsRawFd, token: T) -> Result<()> {
         self.add_fd_with_events(fd, WatchingEvents::empty().set_read(), token)
     }
@@ -523,6 +711,12 @@ impl<T: PollToken> PollContext<T> {
     /// A `fd` can only be added once and does not need to be kept open. If the `fd` is dropped and
     /// there were no duplicated file descriptors (i.e. adding the same descriptor with a different
     /// FD number) added to this context, events will not be reported by `wait` anymore.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be added.
+    /// * `events`: specifies the events to be watched.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
     pub fn add_fd_with_events(&self, fd: &AsRawFd, events: WatchingEvents, token: T) -> Result<()> {
         self.epoll_ctx.add_fd_with_events(fd, events, token)?;
         self.hangups.set(0);
@@ -530,8 +724,16 @@ impl<T: PollToken> PollContext<T> {
         Ok(())
     }
 
+    /// Changes the setting associated with the given `fd` in this context.
+    ///
     /// If `fd` was previously added to this context, the watched events will be replaced with
     /// `events` and the token associated with it will be replaced with the given `token`.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be modified.
+    /// * `events`: specifies the events to be watched.
+    /// * `token`: a `PollToken` implementation, used to be as u64 of `libc::epoll_event` structure.
     pub fn modify(&self, fd: &AsRawFd, events: WatchingEvents, token: T) -> Result<()> {
         self.epoll_ctx.modify(fd, events, token)
     }
@@ -542,6 +744,10 @@ impl<T: PollToken> PollContext<T> {
     /// method or by closing/dropping (if and only if the fd was never dup()'d/fork()'d) the `fd`.
     /// Failure to do so will cause the `wait` method to always return immediately, causing ~100%
     /// CPU load.
+    ///
+    /// # Arguments
+    ///
+    /// * `fd`: the target file descriptor to be removed.
     pub fn delete(&self, fd: &AsRawFd) -> Result<()> {
         self.epoll_ctx.delete(fd)?;
         self.hangups.set(0);
@@ -602,10 +808,15 @@ impl<T: PollToken> PollContext<T> {
         self.wait_timeout(Duration::new(i64::MAX as u64, 0))
     }
 
-    /// Like `wait` except will only block for a maximum of the given `timeout`.
+    /// Like [`wait`](struct.EpollContext.html#method.wait) except will only block for a
+    /// maximum of the given `timeout`.
     ///
     /// This may return earlier than `timeout` with zero events if the duration indicated exceeds
     /// system limits.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout`: specify the time that will block.
     pub fn wait_timeout(&self, timeout: Duration) -> Result<PollEvents<T>> {
         let events = self.epoll_ctx.wait_timeout(&self.events, timeout)?;
         let hangups = events.iter_hungup().count();
@@ -708,5 +919,4 @@ mod tests {
         ctx.wait_timeout(dur).unwrap();
         assert!(start_inst.elapsed() >= dur);
     }
-
 }
