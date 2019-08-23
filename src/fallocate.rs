@@ -44,7 +44,7 @@ pub enum FallocateMode {
 /// use vmm_sys_util::tempdir::TempDir;
 ///
 /// let tempdir = TempDir::new("/tmp/fallocate_test").unwrap();
-/// let mut path = PathBuf::from(tempdir.as_path().unwrap());
+/// let mut path = PathBuf::from(tempdir.as_path());
 /// path.push("file");
 /// let mut f = OpenOptions::new()
 ///     .read(true)

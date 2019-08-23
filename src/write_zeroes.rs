@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn simple_test() {
         let tempdir = TempDir::new("/tmp/write_zeroes_test").unwrap();
-        let mut path = PathBuf::from(tempdir.as_path().unwrap());
+        let mut path = PathBuf::from(tempdir.as_path());
         path.push("file");
         let mut f = OpenOptions::new()
             .read(true)
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn large_write_zeroes() {
         let tempdir = TempDir::new("/tmp/write_zeroes_test").unwrap();
-        let mut path = PathBuf::from(tempdir.as_path().unwrap());
+        let mut path = PathBuf::from(tempdir.as_path());
         path.push("file");
         let mut f = OpenOptions::new()
             .read(true)
