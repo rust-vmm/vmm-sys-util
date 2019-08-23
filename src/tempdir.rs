@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
+//! Structure for handling temporary directories.
+
 use libc;
 use std::ffi::{CString, OsStr, OsString};
 use std::fs;
@@ -12,14 +14,16 @@ use std::path::{Path, PathBuf};
 
 use crate::errno::{errno_result, Error, Result};
 
-/// Create and remove a temporary directory.  The directory will be maintained for the lifetime of
-/// the `TempDir` object.
+/// Wrapper over a temporary directory.
+///
+/// The directory will be maintained for the lifetime of the `TempDir` object.
 pub struct TempDir {
     path: PathBuf,
 }
 
 impl TempDir {
-    /// Creates a new tempory directory.
+    /// Creates a new temporary directory with `prefix`.
+    ///
     /// The directory will be removed when the object goes out of scope.
     ///
     /// # Examples
@@ -28,11 +32,7 @@ impl TempDir {
     /// # use std::path::Path;
     /// # use std::path::PathBuf;
     /// # use vmm_sys_util::tempdir::TempDir;
-    /// # fn test_create_temp_dir() -> Result<(), ()> {
-    ///       let t = TempDir::new("/tmp/testdir").map_err(|_| ())?;
-    ///       assert!(t.as_path().unwrap().exists());
-    /// #     Ok(())
-    /// # }
+    /// let t = TempDir::new("/tmp/testdir").unwrap();
     /// ```
     pub fn new<P: AsRef<OsStr>>(prefix: P) -> Result<TempDir> {
         let mut dir_string = prefix.as_ref().to_os_string();
@@ -54,13 +54,41 @@ impl TempDir {
         })
     }
 
-    /// Removes the temporary directory.  Calling this is optional as dropping a `TempDir` object
-    /// will also remove the directory.  Calling remove explicitly allows for better error handling.
+    /// Removes the temporary directory.
+    ///
+    /// Calling this is optional as when a `TempDir` object goes out of scope,
+    /// the directory will be removed.
+    /// Calling remove explicitly allows for better error handling.
+    ///
+    /// # Errors
+    ///
+    /// This function can only be called once per object. An error is returned
+    /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::path::Path;
+    /// # use std::path::PathBuf;
+    /// # use vmm_sys_util::tempdir::TempDir;
+    /// let temp_dir = TempDir::new("/tmp/testdir").unwrap();
+    /// temp_dir.remove().unwrap();
+    ///
     pub fn remove(&self) -> Result<()> {
         fs::remove_dir_all(&self.path).map_err(Error::from)
     }
 
-    /// Returns the path to the tempdir if it is currently valid
+    /// Returns the path to the tempdir.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::path::Path;
+    /// # use std::path::PathBuf;
+    /// # use vmm_sys_util::tempdir::TempDir;
+    /// let temp_dir = TempDir::new("/tmp/testdir").unwrap();
+    /// assert!(temp_dir.as_path().exists());
+    ///
     pub fn as_path(&self) -> &Path {
         self.path.as_ref()
     }
@@ -105,5 +133,4 @@ mod tests {
 
         assert!(!(path.exists()));
     }
-
 }
