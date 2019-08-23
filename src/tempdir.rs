@@ -4,22 +4,18 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
-use std::ffi::CString;
-use std::ffi::OsStr;
-use std::ffi::OsString;
+use libc;
+use std::ffi::{CString, OsStr, OsString};
 use std::fs;
 use std::os::unix::ffi::OsStringExt;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use libc;
-
-use crate::errno::{errno_result, Result};
+use crate::errno::{errno_result, Error, Result};
 
 /// Create and remove a temporary directory.  The directory will be maintained for the lifetime of
 /// the `TempDir` object.
 pub struct TempDir {
-    path: Option<PathBuf>,
+    path: PathBuf,
 }
 
 impl TempDir {
@@ -54,30 +50,25 @@ impl TempDir {
         }
         dir_bytes.pop(); // Remove the null becasue from_vec can't handle it.
         Ok(TempDir {
-            path: Some(PathBuf::from(OsString::from_vec(dir_bytes))),
+            path: PathBuf::from(OsString::from_vec(dir_bytes)),
         })
     }
 
     /// Removes the temporary directory.  Calling this is optional as dropping a `TempDir` object
     /// will also remove the directory.  Calling remove explicitly allows for better error handling.
-    pub fn remove(mut self) -> Result<()> {
-        let path = self.path.take();
-        path.map_or(Ok(()), fs::remove_dir_all)?;
-        Ok(())
+    pub fn remove(&self) -> Result<()> {
+        fs::remove_dir_all(&self.path).map_err(Error::from)
     }
 
     /// Returns the path to the tempdir if it is currently valid
-    pub fn as_path(&self) -> Option<&Path> {
-        self.path.as_ref().map(|ref p| p.as_path())
+    pub fn as_path(&self) -> &Path {
+        self.path.as_ref()
     }
 }
 
 impl Drop for TempDir {
     fn drop(&mut self) {
-        if let Some(ref p) = self.path {
-            // Nothing can be done here if this returns an error.
-            let _ = fs::remove_dir_all(p);
-        }
+        let _ = self.remove();
     }
 }
 
@@ -86,19 +77,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_dir() {
+    fn test_create_dir() {
         let t = TempDir::new("/tmp/asdf").unwrap();
-        let path = t.as_path().unwrap();
+        let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
         assert!(path.starts_with("/tmp/"));
     }
 
     #[test]
-    fn remove_dir() {
+    fn test_remove_dir() {
         let t = TempDir::new("/tmp/asdf").unwrap();
-        let path = t.as_path().unwrap().to_owned();
+        let path = t.as_path().to_owned();
         assert!(t.remove().is_ok());
+        // Calling remove twice returns error.
+        assert!(t.remove().is_err());
         assert!(!path.exists());
     }
+
+    #[test]
+    fn test_drop() {
+        use std::mem::drop;
+        let t = TempDir::new("/tmp/asdf").unwrap();
+        let path = t.as_path().to_owned();
+        // Force tempdir object to go out of scope.
+        drop(t);
+
+        assert!(!(path.exists()));
+    }
+
 }
