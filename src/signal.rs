@@ -36,7 +36,7 @@ pub enum Error {
     /// The signal could not be blocked.
     BlockSignal(errno::Error),
     /// The signal mask could not be retrieved.
-    RetrieveSignalMask(i32),
+    RetrieveSignalMask(c_int),
     /// The signal could not be unblocked.
     UnblockSignal(errno::Error),
     /// Failed to wait for given signal.
@@ -165,7 +165,7 @@ pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
 /// * `flag`: specify the behavior of the signal.
 ///    Set SA_SIGINFO or SA_RESTART if wants to restart after signal received.
 pub unsafe fn register_signal_handler(
-    num: i32,
+    num: c_int,
     handler: SignalHandler,
     for_vcpu: bool,
     flag: c_int,
@@ -352,7 +352,7 @@ pub unsafe trait Killable {
     ///
     /// * `num`: specify the signal and `num + SIGRTMIN` will be sent.
     /// Note the value of `num + SIGRTMIN` must not exceed `SIGRTMAX`.
-    fn kill(&self, num: i32) -> errno::Result<()> {
+    fn kill(&self, num: c_int) -> errno::Result<()> {
         let num = validate_signal_num(num, true)?;
 
         // Safe because we ensure we are using a valid pthread handle,
