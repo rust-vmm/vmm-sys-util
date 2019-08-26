@@ -1,9 +1,20 @@
 // Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
 //
 // Portions Copyright 2017 The Chromium OS Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the THIRD-PARTY file.
+//
+// SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
+
+//! Trait and wrapper for working with C defined FAM structures.
+//!
+//! In C 99 an array of unknown size may appear within a struct definition as the last member
+//! (as long as there is at least one other named member).
+//! This is known as a flexible array member (FAM).
+//! Pre C99, the same behavior could be achieved using zero length arrays.
+//!
+//! Flexible Array Members are the go-to choice for working with large amounts of data
+//! prefixed by header values.
+//!
+//! For example the KVM API has many structures of this kind.
 
 use std::mem::{self, size_of};
 
@@ -14,18 +25,7 @@ pub enum Error {
     SizeLimitExceeded,
 }
 
-/// Trait for accessing some properties of C defined FAM structures.
-///
-/// In C 99 an array of unknown size may appear within a struct definition as the last member
-/// (as long as there is at least one other named member).
-/// This is known as a flexible array member (FAM).
-/// Pre C99, the same behavior could be achieved using zero length arrays.
-///
-/// Flexible Array Members are the go-to choice for working with large amounts of data
-/// prefixed by header values.
-///
-/// For example the kvm API has many structures that are very similar to the `MockFamStruct`
-/// structure defined in the example bellow.
+/// Trait for accessing properties of C defined FAM structures.
 ///
 /// This is unsafe due to the number of constraints that aren't checked:
 /// * the implementer should be a POD
@@ -139,11 +139,11 @@ pub unsafe trait FamStruct {
     fn as_mut_slice(&mut self) -> &mut [Self::Entry];
 }
 
-/// A wrapper for [`FamStruct`](trait.FamStruct.html)
+/// A wrapper for [`FamStruct`](trait.FamStruct.html).
 ///
 /// It helps in treating a [`FamStruct`](trait.FamStruct.html) similarly to an actual `Vec`.
 pub struct FamStructWrapper<T: Default + FamStruct> {
-    // this variable holds the FamStruct structure. We use a `Vec<T>` to make the allocation
+    // This variable holds the FamStruct structure. We use a `Vec<T>` to make the allocation
     // large enough while still being aligned for `T`. Only the first element of `Vec<T>`
     // will actually be used as a `T`. The remaining memory in the `Vec<T>` is for `entries`,
     // which must be contiguous. Since the entries are of type `FamStruct::Entry` we must
@@ -153,20 +153,20 @@ pub struct FamStructWrapper<T: Default + FamStruct> {
 }
 
 impl<T: Default + FamStruct> FamStructWrapper<T> {
-    /// Convert FAM len to `mem_allocator` len
+    /// Convert FAM len to `mem_allocator` len.
     ///
     /// Get the capacity required by mem_allocator in order to hold
-    /// the provided number of [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry)
+    /// the provided number of [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry).
     fn mem_allocator_len(fam_len: usize) -> usize {
         let wrapper_size_in_bytes = size_of::<T>() + fam_len * size_of::<T::Entry>();
         (wrapper_size_in_bytes + size_of::<T>() - 1) / size_of::<T>()
     }
 
-    /// Convert `mem_allocator` len to FAM len
+    /// Convert `mem_allocator` len to FAM len.
     ///
     /// Get the number of elements of type
     /// [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry)
-    /// that fit in a mem_allocator of provided len
+    /// that fit in a mem_allocator of provided len.
     fn fam_len(mem_allocator_len: usize) -> usize {
         if mem_allocator_len == 0 {
             return 0;
@@ -176,14 +176,14 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         array_size_in_bytes / size_of::<T::Entry>()
     }
 
-    /// Create a new FamStructWrapper with `num_elements` elements
+    /// Create a new FamStructWrapper with `num_elements` elements.
     ///
     /// The elements will be zero-initialized. The type of the elements will be
-    /// [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry)
+    /// [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry).
     ///
     /// # Arguments
     ///
-    /// * `num_elements` - The number of elements in the FamStructWrapper
+    /// * `num_elements` - The number of elements in the FamStructWrapper.
     pub fn new(num_elements: usize) -> FamStructWrapper<T> {
         let required_mem_allocator_capacity =
             FamStructWrapper::<T>::mem_allocator_len(num_elements);
@@ -198,7 +198,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         FamStructWrapper { mem_allocator }
     }
 
-    /// Create a new FamStructWrapper from a slice of elements
+    /// Create a new FamStructWrapper from a slice of elements.
     ///
     /// # Arguments
     ///
@@ -269,7 +269,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         FamStructWrapper::<T>::fam_len(self.mem_allocator.capacity())
     }
 
-    /// Reserve additional capacity
+    /// Reserve additional capacity.
     ///
     /// Reserve capacity for at least `additional` more
     /// [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry) elements.
@@ -289,7 +289,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         self.mem_allocator.reserve(additional_mem_allocator_len);
     }
 
-    /// Update the length of the FamStructWrapper
+    /// Update the length of the FamStructWrapper.
     ///
     /// The length of `self` will be updated to the specified value.
     /// The length of the `T` structure and of `self.mem_allocator` will be updated accordingly.
@@ -300,7 +300,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     ///
     /// # Errors
     ///
-    /// When len is greater than the max possible len it returns Error::SizeLimitExceeded
+    /// When len is greater than the max possible len it returns Error::SizeLimitExceeded.
     fn set_len(&mut self, len: usize) -> Result<(), Error> {
         let additional_elements: isize = len as isize - self.len() as isize;
         // If len == self.len there's nothing to do.
@@ -340,13 +340,15 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         Ok(())
     }
 
-    /// Append an element
+    /// Append an element.
     ///
     /// # Arguments
     ///
     /// * `entry` - The element that will be appended to the end of the collection.
     ///
-    /// # Error: When len is already equal to max possible len it returns Error::SizeLimitExceeded
+    /// # Errors
+    ///
+    /// When len is already equal to max possible len it returns Error::SizeLimitExceeded.
     pub fn push(&mut self, entry: T::Entry) -> Result<(), Error> {
         let new_len = self.len() + 1;
         self.set_len(new_len)?;
