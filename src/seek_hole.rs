@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
+//! Traits and implementations over [lseek64](https://linux.die.net/man/3/lseek64).
+
 use std::fs::File;
 use std::io::{Error, Result};
 use std::os::unix::io::AsRawFd;
@@ -16,14 +18,22 @@ use libc::{lseek64, ENXIO, SEEK_DATA, SEEK_HOLE};
 
 /// A trait for seeking to the next hole or non-hole position in a file.
 pub trait SeekHole {
-    /// Seek to the first hole in a file at a position greater than or equal to `offset`.
-    /// If no holes exist after `offset`, the seek position will be set to the end of the file.
-    /// If `offset` is at or after the end of the file, the seek position is unchanged, and None is returned.
+    /// Seek to the first hole in a file.
+    ///
+    /// Seek at a position greater than or equal to `offset`. If no holes exist
+    /// after `offset`, the seek position will be set to the end of the file.
+    /// If `offset` is at or after the end of the file, the seek position is
+    /// unchanged, and None is returned.
+    ///
     /// Returns the current seek position after the seek or an error.
     fn seek_hole(&mut self, offset: u64) -> Result<Option<u64>>;
 
-    /// Seek to the first data in a file at a position greater than or equal to `offset`.
-    /// If no data exists after `offset`, the seek position is unchanged, and None is returned.
+    /// Seek to the first data in a file.
+    ///
+    /// Seek at a position greater than or equal to `offset`.
+    /// If no data exists after `offset`, the seek position is unchanged,
+    /// and None is returned.
+    ///
     /// Returns the current offset after the seek or an error.
     fn seek_data(&mut self, offset: u64) -> Result<Option<u64>>;
 }
@@ -33,7 +43,7 @@ pub const SEEK_DATA: c_int = 3;
 #[cfg(target_env = "musl")]
 pub const SEEK_HOLE: c_int = 4;
 
-/// Safe wrapper for `libc::lseek64()`
+// Safe wrapper for `libc::lseek64()`
 fn lseek(file: &mut File, offset: i64, whence: i32) -> Result<Option<u64>> {
     // This is safe because we pass a known-good file descriptor.
     let res = unsafe { lseek64(file.as_raw_fd(), offset, whence) };
