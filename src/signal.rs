@@ -137,6 +137,15 @@ fn SIGRTMAX() -> c_int {
 ///
 /// * `num`: the signal number to be verify.
 /// * `for_vcpu`: if `num` is a vcpu signal.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::signal::validate_signal_num;
+///
+/// let num = validate_signal_num(1, true).unwrap();
+/// ```
 pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
     if for_vcpu {
         let actual_num = num + SIGRTMIN();
@@ -164,6 +173,21 @@ pub fn validate_signal_num(num: c_int, for_vcpu: bool) -> errno::Result<c_int> {
 /// * `for_vcpu`: whether `num` is a vcpu signal.
 /// * `flag`: specify the behavior of the signal.
 ///    Set SA_SIGINFO or SA_RESTART if wants to restart after signal received.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// extern crate vmm_sys_util;
+/// # use libc::{c_int, c_void, siginfo_t, SA_SIGINFO};
+/// use vmm_sys_util::signal::{register_signal_handler, SignalHandler};
+///
+/// extern "C" fn handle_signal(_: c_int, _: *mut siginfo_t, _: *mut c_void) {}
+/// unsafe {
+///     register_signal_handler(0, SignalHandler::Siginfo(handle_signal), true, SA_SIGINFO);
+/// }
+/// ```
+
 pub unsafe fn register_signal_handler(
     num: c_int,
     handler: SignalHandler,
@@ -188,6 +212,19 @@ pub unsafe fn register_signal_handler(
 /// # Arguments
 ///
 /// * `signals`: signal numbers to be added to the new `sigset`.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// extern crate vmm_sys_util;
+/// # use libc::sigismember;
+/// use vmm_sys_util::signal::create_sigset;
+///
+/// let sigset = create_sigset(&[1]).unwrap();
+///
+/// unsafe { assert_eq!(sigismember(&sigset, 1), 1); }
+/// ```
 pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
     // sigset will actually be initialized by sigemptyset below.
     let mut sigset: sigset_t = unsafe { mem::zeroed() };
@@ -214,6 +251,16 @@ pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
 /// Use [`pthread_sigmask`](http://man7.org/linux/man-pages/man3/pthread_sigmask.3.html)
 /// to fetch the signal mask which is blocked for the caller, return the signal mask as
 /// a vector of c_int.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::signal::{block_signal, get_blocked_signals};
+///
+/// block_signal(1).unwrap();
+/// assert!(get_blocked_signals().unwrap().contains(&(1)));
+/// ```
 pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
     let mut mask = Vec::new();
 
@@ -244,6 +291,15 @@ pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
 /// # Arguments
 ///
 /// * `num`: the signal to be masked.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::signal::block_signal;
+///
+/// block_signal(1).unwrap();
+/// ```
 pub fn block_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
@@ -270,6 +326,17 @@ pub fn block_signal(num: c_int) -> SignalResult<()> {
 /// # Arguments
 ///
 /// * `num`: the signal to be unmasked.
+///
+/// # Examples
+///
+/// ```
+/// extern crate vmm_sys_util;
+/// use vmm_sys_util::signal::{block_signal, get_blocked_signals, unblock_signal};
+///
+/// block_signal(1).unwrap();
+/// assert!(get_blocked_signals().unwrap().contains(&(1)));
+/// unblock_signal(1).unwrap();
+/// ```
 pub fn unblock_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
@@ -286,6 +353,30 @@ pub fn unblock_signal(num: c_int) -> SignalResult<()> {
 /// # Arguments
 ///
 /// * `num`: the signal to be cleared.
+///
+/// # Examples
+///
+/// ```
+/// # extern crate libc;
+/// extern crate vmm_sys_util;
+/// # use libc::{pthread_kill, sigismember, sigpending, sigset_t};
+/// # use std::mem;
+/// # use std::thread;
+/// # use std::time::Duration;
+/// use vmm_sys_util::signal::{block_signal, clear_signal, Killable};
+///
+/// block_signal(1).unwrap();
+/// let killable = thread::spawn(move || {
+///     thread::sleep(Duration::from_millis(100));
+///     unsafe {
+///         let mut chkset: sigset_t = mem::zeroed();
+///         sigpending(&mut chkset);
+///         assert_eq!(sigismember(&chkset, 1), 1);
+///     }
+/// });
+/// unsafe { pthread_kill(killable.pthread_handle(), 1); }
+/// clear_signal(1).unwrap();
+/// ```
 pub fn clear_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
