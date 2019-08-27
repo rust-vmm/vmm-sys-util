@@ -12,6 +12,7 @@ use std::cmp::min;
 use std::fs::File;
 use std::i32;
 use std::i64;
+use std::io::{stderr, Cursor, Write};
 use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::ptr::null_mut;
@@ -783,10 +784,24 @@ impl<T: PollToken> PollContext<T> {
         let old_hangups = self.hangups.get();
         let max_hangups = self.max_hangups.get();
         if old_hangups <= max_hangups && old_hangups + new_hangups > max_hangups {
-            warn!(
-                "busy poll wait loop with hungup FDs detected on thread {}",
-                thread::current().name().unwrap_or("")
-            );
+            let mut buf = [0u8; 512];
+            let (res, len) = {
+                let mut buf_cursor = Cursor::new(&mut buf[..]);
+                (
+                    writeln!(
+                        &mut buf_cursor,
+                        "[{}:{}] busy poll wait loop with hungup FDs detected on thread {}\n",
+                        file!(),
+                        line!(),
+                        thread::current().name().unwrap_or("")
+                    ),
+                    buf_cursor.position() as usize,
+                )
+            };
+
+            if res.is_ok() {
+                let _ = stderr().write_all(&buf[..len]);
+            }
             // This panic is helpful for tests of this functionality.
             #[cfg(test)]
             panic!("hungup busy loop detected");
