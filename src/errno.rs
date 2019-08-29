@@ -6,6 +6,9 @@
 //
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
+//! Structures, helpers, and type definitions for working with
+//! [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
+
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
