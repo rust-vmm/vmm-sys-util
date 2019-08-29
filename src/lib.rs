@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
 extern crate libc;
 
-// Export the syslog module first so that the macros are available to the other modules.
-#[macro_use]
-pub mod syslog;
-
 #[macro_use]
 pub mod ioctl;
 /// Structures, helpers, and type definitions for working with
