@@ -9,7 +9,7 @@
 //! Macros and functions for working with
 //! [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html).
 use libc;
-use std::os::raw::{c_int, c_uint, c_ulong, c_void};
+use std::os::raw::{c_int, c_ulong, c_void};
 use std::os::unix::io::AsRawFd;
 
 /// Expression that calculates an ioctl number.
@@ -168,26 +168,35 @@ macro_rules! ioctl_iowr_nr {
     };
 }
 
-pub const _IOC_NRBITS: c_uint = 8;
-pub const _IOC_TYPEBITS: c_uint = 8;
-pub const _IOC_SIZEBITS: c_uint = 14;
-pub const _IOC_DIRBITS: c_uint = 2;
-pub const _IOC_NRMASK: c_uint = 255;
-pub const _IOC_TYPEMASK: c_uint = 255;
-pub const _IOC_SIZEMASK: c_uint = 16383;
-pub const _IOC_DIRMASK: c_uint = 3;
-pub const _IOC_NRSHIFT: c_uint = 0;
-pub const _IOC_TYPESHIFT: c_uint = 8;
-pub const _IOC_SIZESHIFT: c_uint = 16;
-pub const _IOC_DIRSHIFT: c_uint = 30;
-pub const _IOC_NONE: c_uint = 0;
-pub const _IOC_WRITE: c_uint = 1;
-pub const _IOC_READ: c_uint = 2;
-pub const IOC_IN: c_uint = 1_073_741_824;
-pub const IOC_OUT: c_uint = 2_147_483_648;
-pub const IOC_INOUT: c_uint = 3_221_225_472;
-pub const IOCSIZE_MASK: c_uint = 1_073_676_288;
-pub const IOCSIZE_SHIFT: c_uint = 16;
+// Define IOC_* constants in a module so that we can allow missing docs on it.
+// There is not much value in documenting these as it is code generated from
+// kernel definitions.
+#[allow(missing_docs)]
+mod ioc {
+    use std::os::raw::c_uint;
+
+    pub const _IOC_NRBITS: c_uint = 8;
+    pub const _IOC_TYPEBITS: c_uint = 8;
+    pub const _IOC_SIZEBITS: c_uint = 14;
+    pub const _IOC_DIRBITS: c_uint = 2;
+    pub const _IOC_NRMASK: c_uint = 255;
+    pub const _IOC_TYPEMASK: c_uint = 255;
+    pub const _IOC_SIZEMASK: c_uint = 16383;
+    pub const _IOC_DIRMASK: c_uint = 3;
+    pub const _IOC_NRSHIFT: c_uint = 0;
+    pub const _IOC_TYPESHIFT: c_uint = 8;
+    pub const _IOC_SIZESHIFT: c_uint = 16;
+    pub const _IOC_DIRSHIFT: c_uint = 30;
+    pub const _IOC_NONE: c_uint = 0;
+    pub const _IOC_WRITE: c_uint = 1;
+    pub const _IOC_READ: c_uint = 2;
+    pub const IOC_IN: c_uint = 1_073_741_824;
+    pub const IOC_OUT: c_uint = 2_147_483_648;
+    pub const IOC_INOUT: c_uint = 3_221_225_472;
+    pub const IOCSIZE_MASK: c_uint = 1_073_676_288;
+    pub const IOCSIZE_SHIFT: c_uint = 16;
+}
+pub use self::ioc::*;
 
 // The type of the `req` parameter is different for the `musl` library. This will enable
 // successful build for other non-musl libraries.
