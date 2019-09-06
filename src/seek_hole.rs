@@ -39,9 +39,9 @@ pub trait SeekHole {
 }
 
 #[cfg(target_env = "musl")]
-pub const SEEK_DATA: c_int = 3;
+const SEEK_DATA: c_int = 3;
 #[cfg(target_env = "musl")]
-pub const SEEK_HOLE: c_int = 4;
+const SEEK_HOLE: c_int = 4;
 
 // Safe wrapper for `libc::lseek64()`
 fn lseek(file: &mut File, offset: i64, whence: i32) -> Result<Option<u64>> {
