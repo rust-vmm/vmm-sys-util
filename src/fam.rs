@@ -426,6 +426,38 @@ impl<T: Default + FamStruct + Clone> From<Vec<T>> for FamStructWrapper<T> {
     }
 }
 
+/// Generate `FamStruct` implementation for structs with flexible array member.
+#[macro_export]
+macro_rules! generate_fam_struct_impl {
+    ($struct_type: ty, $entry_type: ty, $field_type: ty, $field_name: ident, $max: expr) => {
+        unsafe impl FamStruct for $struct_type {
+            type Entry = $entry_type;
+
+            fn len(&self) -> usize {
+                self.$field_name as usize
+            }
+
+            fn set_len(&mut self, len: usize) {
+                self.$field_name = len as $field_type;
+            }
+
+            fn max_len() -> usize {
+                $max
+            }
+
+            fn as_slice(&self) -> &[<Self as FamStruct>::Entry] {
+                let len = self.len();
+                unsafe { self.entries.as_slice(len) }
+            }
+
+            fn as_mut_slice(&mut self) -> &mut [<Self as FamStruct>::Entry] {
+                let len = self.len();
+                unsafe { self.entries.as_mut_slice(len) }
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,31 +505,7 @@ mod tests {
         pub entries: __IncompleteArrayField<u32>,
     }
 
-    unsafe impl FamStruct for MockFamStruct {
-        type Entry = u32;
-
-        fn len(&self) -> usize {
-            self.len as usize
-        }
-
-        fn set_len(&mut self, len: usize) {
-            self.len = len as u32
-        }
-
-        fn max_len() -> usize {
-            MAX_LEN
-        }
-
-        fn as_slice(&self) -> &[u32] {
-            let len = self.len();
-            unsafe { self.entries.as_slice(len) }
-        }
-
-        fn as_mut_slice(&mut self) -> &mut [u32] {
-            let len = self.len();
-            unsafe { self.entries.as_mut_slice(len) }
-        }
-    }
+    generate_fam_struct_impl!(MockFamStruct, u32, u32, len, 100);
 
     type MockFamStructWrapper = FamStructWrapper<MockFamStruct>;
 
