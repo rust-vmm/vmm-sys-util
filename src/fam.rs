@@ -398,6 +398,20 @@ impl<T: Default + FamStruct + Clone> Clone for FamStructWrapper<T> {
     }
 }
 
+impl<T: Default + FamStruct + Clone> From<Vec<T>> for FamStructWrapper<T> {
+    fn from(vec: Vec<T>) -> Self {
+        FamStructWrapper { mem_allocator: vec }
+    }
+}
+
+impl<T: Default + FamStruct + Clone> From<&Vec<T>> for FamStructWrapper<T> {
+    fn from(vec: &Vec<T>) -> Self {
+        FamStructWrapper {
+            mem_allocator: vec.clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,5 +708,32 @@ mod tests {
         }
 
         assert!(adapter == adapter.clone());
+    }
+
+    #[test]
+    fn test_from() {
+        let data = vec![
+            MockFamStruct {
+                len: 2,
+                padding: 0,
+                entries: __IncompleteArrayField::new(),
+            },
+            MockFamStruct {
+                len: 0xA5,
+                padding: 0x1e,
+                entries: __IncompleteArrayField::new(),
+            },
+        ];
+
+        // test From(&Vec<T>)
+        let wrapper: MockFamStructWrapper = (&data).into();
+        let payload = wrapper.as_slice();
+        assert_eq!(payload[0], 0xA5);
+        assert_eq!(payload[1], 0x1e);
+
+        let wrapper: MockFamStructWrapper = data.into();
+        let payload = wrapper.as_slice();
+        assert_eq!(payload[0], 0xA5);
+        assert_eq!(payload[1], 0x1e);
     }
 }
