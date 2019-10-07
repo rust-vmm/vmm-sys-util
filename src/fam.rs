@@ -215,6 +215,28 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         adapter
     }
 
+    /// Create a new FamStructWrapper from the raw content represented as `Vec<T>`.
+    ///
+    /// Sometimes we already have the raw content of an FAM struct represented as `Vec<T>`,
+    /// and want to use the FamStructWrapper as accessors.
+    ///
+    /// This function is unsafe because the caller needs to ensure that the raw content is correctly
+    /// layed out.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - The raw content represented as `Vec[T]`.
+    pub unsafe fn from_raw(content: Vec<T>) -> Self {
+        FamStructWrapper {
+            mem_allocator: content,
+        }
+    }
+
+    /// Consume the FamStructWrapper and return the raw content as `Vec<T>`.
+    pub fn into_raw(self) -> Vec<T> {
+        self.mem_allocator
+    }
+
     /// Get a reference to the actual [`FamStruct`](trait.FamStruct.html) instance.
     pub fn as_fam_struct_ref(&self) -> &T {
         &self.mem_allocator[0]
@@ -401,14 +423,6 @@ impl<T: Default + FamStruct + Clone> Clone for FamStructWrapper<T> {
 impl<T: Default + FamStruct + Clone> From<Vec<T>> for FamStructWrapper<T> {
     fn from(vec: Vec<T>) -> Self {
         FamStructWrapper { mem_allocator: vec }
-    }
-}
-
-impl<T: Default + FamStruct + Clone> From<&Vec<T>> for FamStructWrapper<T> {
-    fn from(vec: &Vec<T>) -> Self {
-        FamStructWrapper {
-            mem_allocator: vec.clone(),
-        }
     }
 }
 
@@ -711,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from() {
+    fn test_raw_content() {
         let data = vec![
             MockFamStruct {
                 len: 2,
@@ -725,15 +739,14 @@ mod tests {
             },
         ];
 
-        // test From(&Vec<T>)
-        let wrapper: MockFamStructWrapper = (&data).into();
-        let payload = wrapper.as_slice();
-        assert_eq!(payload[0], 0xA5);
-        assert_eq!(payload[1], 0x1e);
+        let wrapper = unsafe { MockFamStructWrapper::from_raw(data) };
+        {
+            let payload = wrapper.as_slice();
+            assert_eq!(payload[0], 0xA5);
+            assert_eq!(payload[1], 0x1e);
+        }
 
-        let wrapper: MockFamStructWrapper = data.into();
-        let payload = wrapper.as_slice();
-        assert_eq!(payload[0], 0xA5);
-        assert_eq!(payload[1], 0x1e);
+        let data = wrapper.into_raw();
+        assert_eq!(data[0].len, 2);
     }
 }
