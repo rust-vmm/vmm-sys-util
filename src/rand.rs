@@ -51,7 +51,7 @@ pub fn xor_psuedo_rng_u32() -> u32 {
 // This will get an array of numbers that can safely be converted to strings
 // because they will be in the range [a-zA-Z0-9]. The return vector could be any
 // size between 0 and 4.
-fn xor_psuedo_rng_u8_alphanumerics(rand_fn: &Fn() -> u32) -> Vec<u8> {
+fn xor_psuedo_rng_u8_alphanumerics(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
     let mut r = vec![];
 
     fn between(lower: u8, upper: u8, to_check: u8) -> bool {
@@ -67,7 +67,7 @@ fn xor_psuedo_rng_u8_alphanumerics(rand_fn: &Fn() -> u32) -> Vec<u8> {
     r
 }
 
-fn rand_alphanumerics_impl(rand_fn: &Fn() -> u32, len: usize) -> OsString {
+fn rand_alphanumerics_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> OsString {
     let mut buf = OsString::new();
     let mut done = 0;
     loop {
