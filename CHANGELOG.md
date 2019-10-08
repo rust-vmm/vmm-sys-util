@@ -1,3 +1,8 @@
+# v0.1.1
+
+* Fixed the Cargo.toml license.
+* Fixed some clippy warnings
+
 # v0.1.0
 
 This is the first vmm-sys-util crate release.
