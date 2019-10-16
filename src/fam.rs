@@ -429,7 +429,8 @@ impl<T: Default + FamStruct + Clone> From<Vec<T>> for FamStructWrapper<T> {
 /// Generate `FamStruct` implementation for structs with flexible array member.
 #[macro_export]
 macro_rules! generate_fam_struct_impl {
-    ($struct_type: ty, $entry_type: ty, $field_type: ty, $field_name: ident, $max: expr) => {
+    ($struct_type: ty, $entry_type: ty, $entries_name: ident,
+     $field_type: ty, $field_name: ident, $max: expr) => {
         unsafe impl FamStruct for $struct_type {
             type Entry = $entry_type;
 
@@ -447,12 +448,12 @@ macro_rules! generate_fam_struct_impl {
 
             fn as_slice(&self) -> &[<Self as FamStruct>::Entry] {
                 let len = self.len();
-                unsafe { self.entries.as_slice(len) }
+                unsafe { self.$entries_name.as_slice(len) }
             }
 
             fn as_mut_slice(&mut self) -> &mut [<Self as FamStruct>::Entry] {
                 let len = self.len();
-                unsafe { self.entries.as_mut_slice(len) }
+                unsafe { self.$entries_name.as_mut_slice(len) }
             }
         }
     };
@@ -505,7 +506,7 @@ mod tests {
         pub entries: __IncompleteArrayField<u32>,
     }
 
-    generate_fam_struct_impl!(MockFamStruct, u32, u32, len, 100);
+    generate_fam_struct_impl!(MockFamStruct, u32, entries, u32, len, 100);
 
     type MockFamStructWrapper = FamStructWrapper<MockFamStruct>;
 
