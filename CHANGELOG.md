@@ -1,7 +1,13 @@
+# v0.2.0
+
+* fam: updated the macro that generates implementions of FamStruct to
+  also take a parameter that specifies the name of the flexible array
+  member.
+
 # v0.1.1
 
 * Fixed the Cargo.toml license.
-* Fixed some clippy warnings
+* Fixed some clippy warnings.
 
 # v0.1.0
 
