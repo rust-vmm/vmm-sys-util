@@ -264,5 +264,4 @@ mod tests {
         tfd.clear().expect("unable to clear the timer");
         assert_eq!(tfd.is_armed().unwrap(), false);
     }
-
 }

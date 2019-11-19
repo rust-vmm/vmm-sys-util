@@ -1,3 +1,11 @@
+# v0.3.0
+
+* Removed `for_vcpu` argument from `signal::register_signal_handler` and
+`signal::validate_signal_num`. Users can now pass absolute values for all valid 
+signal numbers.
+* Removed `flag` argument of `signal::register_signal_handler` public methods,
+which now defaults to `libc::SA_SIGINFO`.
+
 # v0.2.1
 
 * Fixed the FamStructWrapper Clone implementation to avoid UB.
