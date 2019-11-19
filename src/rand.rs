@@ -125,5 +125,4 @@ mod tests {
         let s = rand_alphanumerics(5);
         assert_eq!(5, s.len());
     }
-
 }
