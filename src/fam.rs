@@ -65,15 +65,8 @@ pub enum Error {
 ///     }
 /// }
 ///
-/// impl<T> ::std::clone::Clone for __IncompleteArrayField<T> {
-///     #[inline]
-///     fn clone(&self) -> Self {
-///         Self::new()
-///     }
-/// }
-///
 /// #[repr(C)]
-/// #[derive(Clone, Default)]
+/// #[derive(Default)]
 /// struct MockFamStruct {
 ///     pub len: u32,
 ///     pub padding: u32,
@@ -412,15 +405,13 @@ impl<T: Default + FamStruct> PartialEq for FamStructWrapper<T> {
     }
 }
 
-impl<T: Default + FamStruct + Clone> Clone for FamStructWrapper<T> {
+impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
     fn clone(&self) -> Self {
-        FamStructWrapper {
-            mem_allocator: self.mem_allocator.to_vec(),
-        }
+        FamStructWrapper::from_entries(self.as_slice())
     }
 }
 
-impl<T: Default + FamStruct + Clone> From<Vec<T>> for FamStructWrapper<T> {
+impl<T: Default + FamStruct> From<Vec<T>> for FamStructWrapper<T> {
     fn from(vec: Vec<T>) -> Self {
         FamStructWrapper { mem_allocator: vec }
     }
@@ -491,15 +482,8 @@ mod tests {
         }
     }
 
-    impl<T> ::std::clone::Clone for __IncompleteArrayField<T> {
-        #[inline]
-        fn clone(&self) -> Self {
-            Self::new()
-        }
-    }
-
     #[repr(C)]
-    #[derive(Clone, Default)]
+    #[derive(Default)]
     struct MockFamStruct {
         pub len: u32,
         pub padding: u32,
