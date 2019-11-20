@@ -1,3 +1,7 @@
+# v0.2.1
+
+* Fixed the FamStructWrapper Clone implementation to avoid UB.
+
 # v0.2.0
 
 * fam: updated the macro that generates implementions of FamStruct to
