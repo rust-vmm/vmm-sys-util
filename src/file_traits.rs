@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_fsync() {
-        let tempdir = TempDir::new("/tmp/fsync_test").unwrap();
+        let tempdir = TempDir::new_with_prefix("/tmp/fsync_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("file");
         let mut f = OpenOptions::new()
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_set_len() {
-        let tempdir = TempDir::new("/tmp/set_len_test").unwrap();
+        let tempdir = TempDir::new_with_prefix("/tmp/set_len_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("file");
         let mut f = OpenOptions::new()

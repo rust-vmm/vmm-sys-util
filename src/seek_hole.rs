@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn seek_data() {
-        let tempdir = TempDir::new("/tmp/seek_data_test").unwrap();
+        let tempdir = TempDir::new_with_prefix("/tmp/seek_data_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("test_file");
         let mut file = File::create(&path).unwrap();
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn seek_hole() {
-        let tempdir = TempDir::new("/tmp/seek_hole_test").unwrap();
+        let tempdir = TempDir::new_with_prefix("/tmp/seek_hole_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("test_file");
         let mut file = File::create(&path).unwrap();

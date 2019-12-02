@@ -5,12 +5,13 @@
 // SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
 
 //! Structure for handling temporary directories.
-
-use libc;
+use std::env::temp_dir;
 use std::ffi::{CString, OsStr, OsString};
 use std::fs;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+
+use libc;
 
 use crate::errno::{errno_result, Error, Result};
 
@@ -29,12 +30,10 @@ impl TempDir {
     /// # Examples
     ///
     /// ```
-    /// # use std::path::Path;
-    /// # use std::path::PathBuf;
     /// # use vmm_sys_util::tempdir::TempDir;
-    /// let t = TempDir::new("/tmp/testdir").unwrap();
+    /// let t = TempDir::new_with_prefix("/tmp/testdir").unwrap();
     /// ```
-    pub fn new<P: AsRef<OsStr>>(prefix: P) -> Result<TempDir> {
+    pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempDir> {
         let mut dir_string = prefix.as_ref().to_os_string();
         dir_string.push("XXXXXX");
         // unwrap this result as the internal bytes can't have a null with a valid path.
@@ -54,6 +53,45 @@ impl TempDir {
         })
     }
 
+    /// Creates a new temporary directory with inside `path`.
+    ///
+    /// The directory will be removed when the object goes out of scope.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::path::Path;
+    /// # use vmm_sys_util::tempdir::TempDir;
+    /// let t = TempDir::new_in(Path::new("/tmp/")).unwrap();
+    /// ```
+    pub fn new_in(path: &Path) -> Result<TempDir> {
+        let mut path_buf = path.canonicalize().unwrap();
+        // This `push` adds a trailing slash ("/whatever/path" -> "/whatever/path/").
+        // This is safe for paths with already trailing slash.
+        path_buf.push("");
+        let temp_dir = TempDir::new_with_prefix(path_buf)?;
+        Ok(temp_dir)
+    }
+
+    /// Creates a new temporary directory with inside `$TMPDIR` if set, otherwise in `/tmp`.
+    ///
+    /// The directory will be removed when the object goes out of scope.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use vmm_sys_util::tempdir::TempDir;
+    /// let t = TempDir::new().unwrap();
+    /// ```
+    pub fn new() -> Result<TempDir> {
+        let mut in_tmp_dir = temp_dir();
+        // This `push` adds a trailing slash ("/tmp" -> "/tmp/").
+        // This is safe for paths with already trailing slash.
+        in_tmp_dir.push("");
+        let temp_dir = TempDir::new_in(in_tmp_dir.as_path())?;
+        Ok(temp_dir)
+    }
+
     /// Removes the temporary directory.
     ///
     /// Calling this is optional as when a `TempDir` object goes out of scope,
@@ -71,7 +109,7 @@ impl TempDir {
     /// # use std::path::Path;
     /// # use std::path::PathBuf;
     /// # use vmm_sys_util::tempdir::TempDir;
-    /// let temp_dir = TempDir::new("/tmp/testdir").unwrap();
+    /// let temp_dir = TempDir::new_with_prefix("/tmp/testdir").unwrap();
     /// temp_dir.remove().unwrap();
     ///
     pub fn remove(&self) -> Result<()> {
@@ -86,7 +124,7 @@ impl TempDir {
     /// # use std::path::Path;
     /// # use std::path::PathBuf;
     /// # use vmm_sys_util::tempdir::TempDir;
-    /// let temp_dir = TempDir::new("/tmp/testdir").unwrap();
+    /// let temp_dir = TempDir::new_with_prefix("/tmp/testdir").unwrap();
     /// assert!(temp_dir.as_path().exists());
     ///
     pub fn as_path(&self) -> &Path {
@@ -106,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_create_dir() {
-        let t = TempDir::new("/tmp/asdf").unwrap();
+        let t = TempDir::new().unwrap();
         let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
@@ -114,8 +152,17 @@ mod tests {
     }
 
     #[test]
+    fn test_create_dir_with_prefix() {
+        let t = TempDir::new_with_prefix("/tmp/testdir").unwrap();
+        let path = t.as_path();
+        assert!(path.exists());
+        assert!(path.is_dir());
+        assert!(path.to_str().unwrap().contains("/tmp/testdir"));
+    }
+
+    #[test]
     fn test_remove_dir() {
-        let t = TempDir::new("/tmp/asdf").unwrap();
+        let t = TempDir::new().unwrap();
         let path = t.as_path().to_owned();
         assert!(t.remove().is_ok());
         // Calling remove twice returns error.
@@ -124,9 +171,24 @@ mod tests {
     }
 
     #[test]
+    fn test_create_dir_in() {
+        let t = TempDir::new_in(Path::new("/tmp")).unwrap();
+        let path = t.as_path();
+        assert!(path.exists());
+        assert!(path.is_dir());
+        assert!(path.starts_with("/tmp/"));
+
+        let t = TempDir::new_in(Path::new("/tmp")).unwrap();
+        let path = t.as_path();
+        assert!(path.exists());
+        assert!(path.is_dir());
+        assert!(path.starts_with("/tmp"));
+    }
+
+    #[test]
     fn test_drop() {
         use std::mem::drop;
-        let t = TempDir::new("/tmp/asdf").unwrap();
+        let t = TempDir::new_with_prefix("/tmp/asdf").unwrap();
         let path = t.as_path().to_owned();
         // Force tempdir object to go out of scope.
         drop(t);
