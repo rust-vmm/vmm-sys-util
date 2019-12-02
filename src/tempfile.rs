@@ -17,11 +17,12 @@
 //! use std::io::Write;
 //! use std::path::{Path, PathBuf};
 //! use vmm_sys_util::tempfile::TempFile;
-//! let t = TempFile::new("/tmp/testfile").unwrap();
+//! let t = TempFile::new_with_prefix("/tmp/testfile").unwrap();
 //! let mut f = t.as_file();
 //! f.write_all(b"hello world").unwrap();
 //! f.sync_all().unwrap();
 
+use std::env::temp_dir;
 use std::ffi::{CString, OsStr};
 use std::fs;
 use std::fs::File;
@@ -42,14 +43,14 @@ pub struct TempFile {
 }
 
 impl TempFile {
-    /// Creates the TempFile
+    /// Creates the TempFile using a prefix.
     ///
     /// # Arguments
     ///
     /// `prefix`: The path and filename where to creat the temporary file. Six
     /// random alphanumeric characters will be added to the end of this to form
     /// the filename.
-    pub fn new<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
+    pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
         let mut os_fname = prefix.as_ref().to_os_string();
         os_fname.push("XXXXXX");
 
@@ -77,6 +78,31 @@ impl TempFile {
             path: PathBuf::from(os_tempname),
             file,
         })
+    }
+
+    /// Creates the TempFile inside a specific location.
+    ///
+    /// # Arguments
+    ///
+    /// `path`: The path where to create a temporary file with a filename formed from
+    /// six random alphanumeric characters.
+    pub fn new_in(path: &Path) -> Result<Self> {
+        let mut path_buf = path.canonicalize().unwrap();
+        // This `push` adds a trailing slash ("/whatever/path" -> "/whatever/path/").
+        // This is safe for paths with an already existing trailing slash.
+        path_buf.push("");
+        let temp_file = TempFile::new_with_prefix(path_buf.as_path())?;
+        Ok(temp_file)
+    }
+
+    /// Creates the TempFile.
+    ///
+    /// Creates a temporary file inside `$TMPDIR` if set, otherwise inside `/tmp`.
+    /// The filename will consist from six random alphanumeric characters.
+    pub fn new() -> Result<Self> {
+        let in_tmp_dir = temp_dir();
+        let temp_file = TempFile::new_in(in_tmp_dir.as_path())?;
+        Ok(temp_file)
     }
 
     /// Removes the temporary file.
@@ -111,13 +137,13 @@ mod tests {
     use std::io::Write;
 
     #[test]
-    fn test_create_file() {
+    fn test_create_file_with_prefix() {
         fn between(lower: u8, upper: u8, to_check: u8) -> bool {
             (to_check >= lower) && (to_check <= upper)
         }
 
         let tempname = "/tmp/asdf";
-        let t = TempFile::new(tempname).unwrap();
+        let t = TempFile::new_with_prefix(tempname).unwrap();
         assert_eq!(tempname, "/tmp/asdf");
         let path = t.as_path().to_owned();
 
@@ -143,8 +169,35 @@ mod tests {
     }
 
     #[test]
+    fn test_create_file_new() {
+        let t = TempFile::new().unwrap();
+        let path = t.as_path().to_owned();
+
+        // Check filename is in the correct location
+        assert!(path.starts_with("/tmp/"));
+    }
+
+    #[test]
+    fn test_create_file_new_in() {
+        let t = TempFile::new_in(Path::new("/tmp")).unwrap();
+        let path = t.as_path().to_owned();
+
+        // Check filename exists
+        assert!(path.is_file());
+
+        // Check filename is in the correct location
+        assert!(path.starts_with("/tmp/"));
+
+        let t = TempFile::new_in(Path::new("/tmp/")).unwrap();
+        let path = t.as_path().to_owned();
+
+        // Check filename is in the correct location
+        assert!(path.starts_with("/tmp/"));
+    }
+
+    #[test]
     fn test_remove_file() {
-        let mut t = TempFile::new("/tmp/asdf").unwrap();
+        let mut t = TempFile::new_with_prefix("/tmp/asdf").unwrap();
         let path = t.as_path().to_owned();
         assert!(path.starts_with("/tmp"));
 
@@ -158,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_drop_file() {
-        let t = TempFile::new("/tmp/asdf").unwrap();
+        let t = TempFile::new_with_prefix("/tmp/asdf").unwrap();
         let path = t.as_path().to_owned();
         assert!(path.starts_with("/tmp"));
         drop(t);
