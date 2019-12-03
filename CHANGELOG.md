@@ -1,10 +1,13 @@
 # v0.3.0
 
 * Removed `for_vcpu` argument from `signal::register_signal_handler` and
-`signal::validate_signal_num`. Users can now pass absolute values for all valid 
-signal numbers.
+  `signal::validate_signal_num`. Users can now pass absolute values for all
+  valid  signal numbers.
 * Removed `flag` argument of `signal::register_signal_handler` public methods,
-which now defaults to `libc::SA_SIGINFO`.
+  which now defaults to `libc::SA_SIGINFO`.
+* Changed `TempFile::new` and `TempDir::new` to create new temporary files/
+  directories inside `$TMPDIR` if set, otherwise inside `/tmp`.
+* Added methods which create temporary files/directories with prefix.
 
 # v0.2.1
 
