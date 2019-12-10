@@ -93,20 +93,20 @@ extern "C" {
 
 /// Return the minimum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
-fn SIGRTMIN() -> c_int {
+pub fn SIGRTMIN() -> c_int {
     unsafe { __libc_current_sigrtmin() }
 }
 
 /// Return the maximum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
-fn SIGRTMAX() -> c_int {
+pub fn SIGRTMAX() -> c_int {
     unsafe { __libc_current_sigrtmax() }
 }
 
 /// Verify that a signal number is valid.
 ///
 /// Supported signals range from `SIGHUP` to `SIGSYS` and from `SIGRTMIN` to `SIGRTMAX`.
-/// We recommend using realtime signals `[SIGRTMIN, SIGRTMAX]` for VCPU threads.
+/// We recommend using realtime signals `[SIGRTMIN(), SIGRTMAX()]` for VCPU threads.
 ///
 /// # Arguments
 ///
@@ -397,8 +397,9 @@ pub fn clear_signal(num: c_int) -> SignalResult<()> {
 
 /// Trait for threads that can be signalled via `pthread_kill`.
 ///
-/// Note that this is only useful for signals between `SIGRTMIN` and `SIGRTMAX`
-/// because these are guaranteed to not be used by the C runtime.
+/// Note that this is only useful for signals between `SIGRTMIN()` and
+/// `SIGRTMAX()` because these are guaranteed to not be used by the C
+/// runtime.
 ///
 /// # Safety
 ///
