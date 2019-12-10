@@ -414,8 +414,7 @@ pub unsafe trait Killable {
     ///
     /// # Arguments
     ///
-    /// * `num`: specify the signal and `num + SIGRTMIN` will be sent.
-    /// Note the value of `num + SIGRTMIN` must not exceed `SIGRTMAX`.
+    /// * `num`: specify the signal
     fn kill(&self, num: c_int) -> errno::Result<()> {
         validate_signal_num(num)?;
 
