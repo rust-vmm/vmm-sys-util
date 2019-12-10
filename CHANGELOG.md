@@ -1,3 +1,8 @@
+# v0.3.1
+
+* Advertise functionality for obtaining POSIX real time signal base which is
+  needed to provide absolute signals in the API changed in v0.3.0.
+
 # v0.3.0
 
 * Removed `for_vcpu` argument from `signal::register_signal_handler` and
