@@ -26,6 +26,7 @@ use std::env::temp_dir;
 use std::ffi::{CString, OsStr};
 use std::fs;
 use std::fs::File;
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::io::FromRawFd;
 use std::path::{Path, PathBuf};
@@ -128,6 +129,28 @@ impl TempFile {
 impl Drop for TempFile {
     fn drop(&mut self) {
         let _ = self.remove();
+    }
+}
+
+impl Read for TempFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.file.read(buf)
+    }
+}
+
+impl Write for TempFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.file.write(buf)
+    }
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
+}
+
+impl Seek for TempFile {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.file.seek(pos)
     }
 }
 
