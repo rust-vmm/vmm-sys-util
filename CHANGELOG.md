@@ -1,3 +1,8 @@
+# Unreleased
+
+* Added conditionally compiled `serde` compatibility to `FamStructWrapper`,
+  gated by the `with-serde` feature.
+
 # v0.4.0
 
 * Added Windows support for TempFile and errno::Error.
@@ -49,7 +54,8 @@ Firecracker projects, or both.
 
 The first release comes with the following Rust modules:
 
-* aio: Safe wrapper over [`Linux AIO`](http://man7.org/linux/man-pages/man7/aio.7.html).
+* aio: Safe wrapper over
+  [`Linux AIO`](http://man7.org/linux/man-pages/man7/aio.7.html).
 
 * errno: Structures, helpers, and type definitions for working with
   [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
@@ -79,8 +85,9 @@ The first release comes with the following Rust modules:
 * signal: Enums, traits and functions for working with
   [`signal`](http://man7.org/linux/man-pages/man7/signal.7.html).
 
-* sockctrl_msg: Wrapper for sending and receiving messages with file descriptors
-  on sockets that accept control messages (e.g. Unix domain sockets).
+* sockctrl_msg: Wrapper for sending and receiving messages with file
+  descriptors on sockets that accept control messages (e.g. Unix domain
+  sockets).
 
 * tempdir: Structure for handling temporary directories.
 

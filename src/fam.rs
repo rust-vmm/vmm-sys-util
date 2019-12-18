@@ -18,6 +18,11 @@
 
 use std::mem::{self, size_of};
 
+#[cfg(feature = "with-serde")]
+use serde::de::{Deserialize, Deserializer};
+#[cfg(feature = "with-serde")]
+use serde::{Serialize, Serializer};
+
 /// Errors associated with the [`FamStructWrapper`](struct.FamStructWrapper.html) struct.
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -417,6 +422,34 @@ impl<T: Default + FamStruct> From<Vec<T>> for FamStructWrapper<T> {
     }
 }
 
+#[cfg(feature = "with-serde")]
+impl<T: Default + FamStruct + Serialize> Serialize for FamStructWrapper<T>
+where
+    <T as FamStruct>::Entry: serde::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.as_slice().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "with-serde")]
+impl<'de, T: Default + FamStruct + Deserialize<'de>> Deserialize<'de> for FamStructWrapper<T>
+where
+    <T as FamStruct>::Entry: std::marker::Copy + serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+        <T as FamStruct>::Entry: std::marker::Copy + serde::Deserialize<'de>,
+    {
+        let entries_vec: Vec<<T as FamStruct>::Entry> = Vec::deserialize(deserializer)?;
+        Ok(FamStructWrapper::from_entries(entries_vec.as_slice()))
+    }
+}
+
 /// Generate `FamStruct` implementation for structs with flexible array member.
 #[macro_export]
 macro_rules! generate_fam_struct_impl {
@@ -452,6 +485,12 @@ macro_rules! generate_fam_struct_impl {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "with-serde")]
+    extern crate serde_json;
+
+    #[cfg(feature = "with-serde")]
+    use serde_derive::{Deserialize, Serialize};
+
     use super::*;
 
     const MAX_LEN: usize = 100;
@@ -482,8 +521,29 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "with-serde")]
+    impl<T> Serialize for __IncompleteArrayField<T> {
+        fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            [0u8; 0].serialize(serializer)
+        }
+    }
+
+    #[cfg(feature = "with-serde")]
+    impl<'de, T> Deserialize<'de> for __IncompleteArrayField<T> {
+        fn deserialize<D>(_: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Ok(__IncompleteArrayField::new())
+        }
+    }
+
     #[repr(C)]
     #[derive(Default)]
+    #[cfg_attr(feature = "with-serde", derive(Deserialize, Serialize))]
     struct MockFamStruct {
         pub len: u32,
         pub padding: u32,
@@ -741,5 +801,31 @@ mod tests {
 
         let data = wrapper.into_raw();
         assert_eq!(data[0].len, 2);
+    }
+
+    #[cfg(feature = "with-serde")]
+    #[test]
+    fn test_ser_deser() {
+        let data = vec![
+            MockFamStruct {
+                len: 2,
+                padding: 0,
+                entries: __IncompleteArrayField::new(),
+            },
+            MockFamStruct {
+                len: 0xA5,
+                padding: 0x1e,
+                entries: __IncompleteArrayField::new(),
+            },
+        ];
+
+        let wrapper = unsafe { MockFamStructWrapper::from_raw(data) };
+
+        let data_ser = serde_json::to_string(&wrapper).unwrap();
+        let data_deser = serde_json::from_str::<MockFamStructWrapper>(data_ser.as_str()).unwrap();
+        assert!(wrapper.eq(&data_deser));
+
+        let bad_data_ser = r#"{"foo": "bar"}"#;
+        assert!(serde_json::from_str::<MockFamStructWrapper>(bad_data_ser).is_err());
     }
 }
