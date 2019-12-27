@@ -9,6 +9,7 @@
 //! Structures, helpers, and type definitions for working with
 //! [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
 
+use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
@@ -103,6 +104,12 @@ impl Display for Error {
     }
 }
 
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        None
+    }
+}
+
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
         Error::new(e.raw_os_error().unwrap_or_default())
@@ -135,6 +142,7 @@ mod tests {
 
         // Test that the inner value of `Error` corresponds to libc::EBADF.
         assert_eq!(last_err.errno(), libc::EBADF);
+        assert!(last_err.source().is_none());
 
         // Test creating an `Error` from a `std::io::Error`.
         assert_eq!(last_err, Error::from(io::Error::last_os_error()));
