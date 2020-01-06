@@ -156,6 +156,13 @@ pub fn validate_signal_num(num: c_int) -> errno::Result<()> {
 pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Result<()> {
     validate_signal_num(num)?;
 
+    // signum specifies the signal and can be any valid signal except
+    // SIGKILL and SIGSTOP.
+    // [`sigaction`](http://man7.org/linux/man-pages/man2/sigaction.2.html).
+    if libc::SIGKILL == num || libc::SIGSTOP == num {
+        return Err(errno::Error::new(EINVAL));
+    }
+
     // Safe, because this is a POD struct.
     let mut act: sigaction = unsafe { mem::zeroed() };
     act.sa_sigaction = handler as *const () as usize;
@@ -465,6 +472,8 @@ mod tests {
     #[test]
     fn test_register_signal_handler() {
         // testing bad value
+        assert!(register_signal_handler(libc::SIGKILL, handle_signal).is_err());
+        assert!(register_signal_handler(libc::SIGSTOP, handle_signal).is_err());
         assert!(register_signal_handler(SIGRTMAX() + 1, handle_signal).is_err());
         format!("{:?}", register_signal_handler(SIGRTMAX(), handle_signal));
         assert!(register_signal_handler(SIGRTMIN(), handle_signal).is_ok());
