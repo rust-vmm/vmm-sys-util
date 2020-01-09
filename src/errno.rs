@@ -9,7 +9,6 @@
 //! Structures, helpers, and type definitions for working with
 //! [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
 
-use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
@@ -104,11 +103,7 @@ impl Display for Error {
     }
 }
 
-impl StdError for Error {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        None
-    }
-}
+impl std::error::Error for Error {}
 
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
@@ -127,6 +122,7 @@ pub fn errno_result<T>() -> Result<T> {
 mod tests {
     use super::*;
     use libc;
+    use std::error::Error as _;
     use std::fs::File;
     use std::io::{self, Write};
     use std::os::unix::io::FromRawFd;
