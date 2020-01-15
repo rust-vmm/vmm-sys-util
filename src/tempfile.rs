@@ -36,7 +36,7 @@ use crate::rand::rand_alphanumerics;
 /// The file will be maintained for the lifetime of the `TempFile` object.
 pub struct TempFile {
     path: PathBuf,
-    file: File,
+    file: Option<File>,
 }
 
 impl TempFile {
@@ -64,7 +64,7 @@ impl TempFile {
 
         Ok(TempFile {
             path: file_path_buf,
-            file,
+            file: Some(file),
         })
     }
 
@@ -109,7 +109,17 @@ impl TempFile {
 
     /// Returns a reference to the File
     pub fn as_file(&self) -> &File {
-        &self.file
+        // It's safe to unwrap because `file` can be `None` only after calling `into_file`
+        // which consumes this object.
+        self.file.as_ref().unwrap()
+    }
+
+    /// Consumes the TempFile, returning the wrapped file.
+    ///
+    /// This also removes the file from the system. The file descriptor remains opened and
+    /// it can be used until the returned file is dropped.
+    pub fn into_file(mut self) -> File {
+        self.file.take().unwrap()
     }
 }
 
@@ -122,7 +132,7 @@ impl Drop for TempFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::io::{Read, Write};
 
     #[test]
     fn test_create_file_with_prefix() {
@@ -206,5 +216,18 @@ mod tests {
         assert!(path.starts_with("/tmp"));
         drop(t);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_into_file() {
+        let text = b"hello world";
+        let temp_file = TempFile::new_with_prefix("/tmp/asdf").unwrap();
+        let path = temp_file.as_path().to_owned();
+        fs::write(path, text).unwrap();
+
+        let mut file = temp_file.into_file();
+        let mut buf: Vec<u8> = Vec::new();
+        file.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, text);
     }
 }
