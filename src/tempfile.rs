@@ -23,16 +23,13 @@
 //! f.sync_all().unwrap();
 
 use std::env::temp_dir;
-use std::ffi::{CString, OsStr};
+use std::ffi::OsStr;
 use std::fs;
-use std::fs::File;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::io::FromRawFd;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 
-use libc;
-
-use crate::errno::{errno_result, Error, Result};
+use crate::errno::{Error, Result};
+use crate::rand::rand_alphanumerics;
 
 /// Wrapper for working with temporary files.
 ///
@@ -51,31 +48,22 @@ impl TempFile {
     /// random alphanumeric characters will be added to the end of this to form
     /// the filename.
     pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
-        let mut os_fname = prefix.as_ref().to_os_string();
-        os_fname.push("XXXXXX");
+        let file_path_str = format!(
+            "{}{}",
+            prefix.as_ref().to_str().unwrap_or_default(),
+            rand_alphanumerics(6).to_str().unwrap_or_default()
+        );
+        let file_path_buf = PathBuf::from(&file_path_str);
 
-        let raw_fname = CString::new(os_fname.into_vec()).unwrap().into_raw();
-
-        // Safe because I'm sure `raw_fname` is a valid CString.
-        let fd = unsafe { libc::mkstemp(raw_fname) };
-
-        // The `raw_fname` is the same as `os_fname` (which is `prefix` with X's
-        // appended). The X's are documented as "six characters" which seem to
-        // always be alphanumerics so appears safe.
-        let c_tempname = unsafe { CString::from_raw(raw_fname) };
-        let os_tempname = OsStr::from_bytes(c_tempname.as_bytes());
-
-        if fd == -1 {
-            return errno_result();
-        }
-
-        // Safe because we checked `fd != -1` above and we uniquely own the file
-        // descriptor. This `fd` will be freed etc when `File` and thus
-        // `TempFile` goes out of scope.
-        let file = unsafe { File::from_raw_fd(fd) };
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(file_path_buf.as_path())?;
 
         Ok(TempFile {
-            path: PathBuf::from(os_tempname),
+            path: file_path_buf,
             file,
         })
     }
