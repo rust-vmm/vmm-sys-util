@@ -130,16 +130,16 @@ mod tests {
             (to_check >= lower) && (to_check <= upper)
         }
 
-        let tempname = "/tmp/asdf";
-        let t = TempFile::new_with_prefix(tempname).unwrap();
-        assert_eq!(tempname, "/tmp/asdf");
+        let mut prefix = temp_dir();
+        prefix.push("asdf");
+        let t = TempFile::new_with_prefix(&prefix).unwrap();
         let path = t.as_path().to_owned();
 
         // Check filename exists
         assert!(path.is_file());
 
         // Check filename is in the correct location
-        assert!(path.starts_with("/tmp"));
+        assert!(path.starts_with(temp_dir()));
 
         // Check filename has random added
         assert_eq!(path.as_os_str().len(), 15);
@@ -162,32 +162,34 @@ mod tests {
         let path = t.as_path().to_owned();
 
         // Check filename is in the correct location
-        assert!(path.starts_with("/tmp/"));
+        assert!(path.starts_with(temp_dir()));
     }
 
     #[test]
     fn test_create_file_new_in() {
-        let t = TempFile::new_in(Path::new("/tmp")).unwrap();
+        let t = TempFile::new_in(temp_dir().as_path()).unwrap();
         let path = t.as_path().to_owned();
 
         // Check filename exists
         assert!(path.is_file());
 
         // Check filename is in the correct location
-        assert!(path.starts_with("/tmp/"));
+        assert!(path.starts_with(temp_dir()));
 
-        let t = TempFile::new_in(Path::new("/tmp/")).unwrap();
+        let t = TempFile::new_in(temp_dir().as_path()).unwrap();
         let path = t.as_path().to_owned();
 
         // Check filename is in the correct location
-        assert!(path.starts_with("/tmp/"));
+        assert!(path.starts_with(temp_dir()));
     }
 
     #[test]
     fn test_remove_file() {
-        let mut t = TempFile::new_with_prefix("/tmp/asdf").unwrap();
+        let mut prefix = temp_dir();
+        prefix.push("asdf");
+
+        let mut t = TempFile::new_with_prefix(prefix).unwrap();
         let path = t.as_path().to_owned();
-        assert!(path.starts_with("/tmp"));
 
         // Check removal
         assert!(t.remove().is_ok());
