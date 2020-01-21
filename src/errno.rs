@@ -13,8 +13,6 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 
-use libc::__errno_location;
-
 /// Wrapper over [`errno`](http://man7.org/linux/man-pages/man3/errno.3.html).
 ///
 /// The error number is an integer number set by system calls and some libc
@@ -45,7 +43,7 @@ impl Error {
     /// # use libc;
     /// use vmm_sys_util::errno::Error;
     ///
-    /// let err = Error::new(libc::EBADFD);
+    /// let err = Error::new(libc::EIO);
     /// ```
     pub fn new(errno: i32) -> Error {
         Error(errno)
@@ -66,20 +64,27 @@ impl Error {
     /// #
     /// # use libc;
     /// # use std::fs::File;
-    /// # use std::io::{self, Write};
-    /// # use std::os::unix::io::FromRawFd;
+    /// # use std::io::{self, Read};
+    /// # use std::env::temp_dir;
     /// use vmm_sys_util::errno::Error;
     /// #
-    /// // Writing to an invalid file returns the error number EBADF.
-    /// let mut file = unsafe { File::from_raw_fd(-1) };
-    /// let _ = file.write(b"test");
+    /// // Reading from a file without permissions returns an error.
+    /// let mut path = temp_dir();
+    /// path.push("test");
+    /// let mut file = File::create(path).unwrap();
+    /// let mut buf: Vec<u8> = Vec::new();
+    /// assert!(file.read_to_end(&mut buf).is_err());
     ///
     /// // Retrieve the error number of the previous operation using `Error::last()`:
-    /// let write_err = Error::last();
-    /// assert_eq!(write_err, Error::new(libc::EBADF));
+    /// let read_err = Error::last();
+    /// #[cfg(unix)]
+    /// assert_eq!(read_err, Error::new(libc::EBADF));
+    /// #[cfg(not(unix))]
+    /// assert_eq!(read_err, Error::new(libc::EIO));
     /// ```
     pub fn last() -> Error {
-        Error(unsafe { *__errno_location() })
+        // It's safe to unwrap because this `Error` was constructed via `last_os_error`.
+        Error(io::Error::last_os_error().raw_os_error().unwrap())
     }
 
     /// Returns the raw integer value (`errno`) corresponding to this Error.
@@ -122,22 +127,37 @@ pub fn errno_result<T>() -> Result<T> {
 mod tests {
     use super::*;
     use libc;
+    use std::env::temp_dir;
     use std::error::Error as _;
-    use std::fs::File;
-    use std::io::{self, Write};
-    use std::os::unix::io::FromRawFd;
+    use std::fs::OpenOptions;
+    use std::io::{self, Read};
 
     #[test]
-    pub fn test_invalid_fd() {
-        let mut file = unsafe { File::from_raw_fd(-1) };
-        assert!(file.write(b"test").is_err());
+    pub fn test_errno() {
+        #[cfg(unix)]
+        let expected_errno = libc::EBADF;
+        #[cfg(not(unix))]
+        let expected_errno = libc::EIO;
+
+        // try to read from a file without read permissions
+        let mut path = temp_dir();
+        path.push("test");
+        let mut file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .unwrap();
+        let mut buf: Vec<u8> = Vec::new();
+        assert!(file.read_to_end(&mut buf).is_err());
 
         // Test that errno_result returns Err and the error is the expected one.
         let last_err = errno_result::<i32>().unwrap_err();
-        assert_eq!(last_err, Error::new(libc::EBADF));
+        assert_eq!(last_err, Error::new(expected_errno));
 
-        // Test that the inner value of `Error` corresponds to libc::EBADF.
-        assert_eq!(last_err.errno(), libc::EBADF);
+        // Test that the inner value of `Error` corresponds to expected_errno.
+        assert_eq!(last_err.errno(), expected_errno);
         assert!(last_err.source().is_none());
 
         // Test creating an `Error` from a `std::io::Error`.
@@ -145,11 +165,20 @@ mod tests {
 
         // Test that calling `last()` returns the same error as `errno_result()`.
         assert_eq!(last_err, Error::last());
+    }
 
+    #[test]
+    pub fn test_display() {
         // Test the display implementation.
+        #[cfg(unix)]
         assert_eq!(
             format!("{}", Error::new(libc::EBADF)),
             "Bad file descriptor (os error 9)"
+        );
+        #[cfg(not(unix))]
+        assert_eq!(
+            format!("{}", Error::new(libc::EIO)),
+            "Access is denied. (os error 5)"
         );
     }
 }
