@@ -7,22 +7,12 @@
 #![deny(missing_docs)]
 extern crate libc;
 
-#[macro_use]
-pub mod ioctl;
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use unix::*;
 
-pub mod aio;
 pub mod errno;
-pub mod eventfd;
-pub mod fallocate;
 pub mod fam;
-pub mod file_traits;
-pub mod poll;
 pub mod rand;
-pub mod seek_hole;
-pub mod signal;
-pub mod sock_ctrl_msg;
-pub mod tempdir;
 pub mod tempfile;
-pub mod terminal;
-pub mod timerfd;
-pub mod write_zeroes;
