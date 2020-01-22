@@ -14,10 +14,14 @@
 //! # Examples
 //!
 //! ```
+//! use std::env::temp_dir;
 //! use std::io::Write;
 //! use std::path::{Path, PathBuf};
 //! use vmm_sys_util::tempfile::TempFile;
-//! let t = TempFile::new_with_prefix("/tmp/testfile").unwrap();
+//!
+//! let mut prefix = temp_dir();
+//! prefix.push("tempfile");
+//! let t = TempFile::new_with_prefix(prefix).unwrap();
 //! let mut f = t.as_file();
 //! f.write_all(b"hello world").unwrap();
 //! f.sync_all().unwrap();
@@ -152,11 +156,15 @@ mod tests {
         assert!(path.starts_with(temp_dir()));
 
         // Check filename has random added
-        assert_eq!(path.as_os_str().len(), 15);
+        assert_eq!(path.file_name().unwrap().to_string_lossy().len(), 10);
 
         // Check filename has only ascii letters / numbers
-        for n in &path.to_string_lossy().as_bytes()[5..] {
-            assert!(between(48, 57, *n) || between(65, 90, *n) || between(97, 122, *n));
+        for n in path.file_name().unwrap().to_string_lossy().bytes() {
+            assert!(
+                between('0' as u8, '9' as u8, n)
+                    || between('a' as u8, 'z' as u8, n)
+                    || between('A' as u8, 'Z' as u8, n)
+            );
         }
 
         // Check we can write to the file
@@ -172,7 +180,7 @@ mod tests {
         let path = t.as_path().to_owned();
 
         // Check filename is in the correct location
-        assert!(path.starts_with(temp_dir()));
+        assert!(path.starts_with(temp_dir().canonicalize().unwrap()));
     }
 
     #[test]
@@ -184,13 +192,13 @@ mod tests {
         assert!(path.is_file());
 
         // Check filename is in the correct location
-        assert!(path.starts_with(temp_dir()));
+        assert!(path.starts_with(temp_dir().canonicalize().unwrap()));
 
         let t = TempFile::new_in(temp_dir().as_path()).unwrap();
         let path = t.as_path().to_owned();
 
         // Check filename is in the correct location
-        assert!(path.starts_with(temp_dir()));
+        assert!(path.starts_with(temp_dir().canonicalize().unwrap()));
     }
 
     #[test]
@@ -211,17 +219,24 @@ mod tests {
 
     #[test]
     fn test_drop_file() {
-        let t = TempFile::new_with_prefix("/tmp/asdf").unwrap();
+        let mut prefix = temp_dir();
+        prefix.push("asdf");
+
+        let t = TempFile::new_with_prefix(prefix).unwrap();
         let path = t.as_path().to_owned();
-        assert!(path.starts_with("/tmp"));
+
+        assert!(path.starts_with(temp_dir()));
         drop(t);
         assert!(!path.exists());
     }
 
     #[test]
     fn test_into_file() {
+        let mut prefix = temp_dir();
+        prefix.push("asdf");
+
         let text = b"hello world";
-        let temp_file = TempFile::new_with_prefix("/tmp/asdf").unwrap();
+        let temp_file = TempFile::new_with_prefix(prefix).unwrap();
         let path = temp_file.as_path().to_owned();
         fs::write(path, text).unwrap();
 
