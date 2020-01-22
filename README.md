@@ -3,7 +3,7 @@
 This crate is a collection of modules that provides helpers and utilities
 used by multiple [rust-vmm](https://github.com/rust-vmm/community) components.
 
-The crate implements safe wrappers around common Linux utilities for working
+The crate implements safe wrappers around common utilities for working
 with files, event file descriptors, ioctls and others.
 
 ## Support
@@ -14,6 +14,7 @@ with files, event file descriptors, ioctls and others.
 
 **Operating Systems**:
 - Linux
+- Windows (partial support)
 
 ## License
 
