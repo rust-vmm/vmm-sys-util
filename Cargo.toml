@@ -1,6 +1,6 @@
 [package]
 name = "vmm-sys-util"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Intel Virtualization Team <vmm-maintainers@intel.com>"]
 description = "A system utility set"
 repository = "https://github.com/rust-vmm/vmm-sys-util"

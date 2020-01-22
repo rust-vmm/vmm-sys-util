@@ -1,3 +1,12 @@
+# v0.4.0
+
+* Added Windows support for TempFile and errno::Error.
+* Added `into_file` for TempFile which enables the TempFile to be used as a
+  regular file.
+* Implemented std::error::Error for errno::Error.
+* Fixed the implementation of `register_signal_handler` by allowing only
+  valid signal numbers.
+
 # v0.3.1
 
 * Advertise functionality for obtaining POSIX real time signal base which is
