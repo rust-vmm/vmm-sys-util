@@ -11,14 +11,15 @@
 
 use libc::{
     c_int, c_void, pthread_kill, pthread_sigmask, pthread_t, sigaction, sigaddset, sigemptyset,
-    sigfillset, siginfo_t, sigismember, sigpending, sigset_t, sigtimedwait, timespec, EAGAIN,
-    EINTR, EINVAL, SIG_BLOCK, SIG_UNBLOCK,
+    sigfillset, siginfo_t, sigismember, sigpending, sigset_t, sigtimedwait, sigwaitinfo, timespec,
+    EAGAIN, EINTR, EINVAL, SIG_BLOCK, SIG_UNBLOCK,
 };
 
 use errno;
 use std::fmt::{self, Display};
 use std::io;
 use std::mem;
+use std::os::raw::c_longlong;
 use std::os::unix::thread::JoinHandleExt;
 use std::ptr::{null, null_mut};
 use std::result;
@@ -27,24 +28,28 @@ use std::thread::JoinHandle;
 /// The error cases enumeration for signal handling.
 #[derive(Debug)]
 pub enum Error {
-    /// Couldn't create a sigset.
-    CreateSigset(errno::Error),
-    /// The wrapped signal has already been blocked.
-    SignalAlreadyBlocked(c_int),
-    /// Failed to check if the requested signal is in the blocked set already.
-    CompareBlockedSignals(errno::Error),
     /// The signal could not be blocked.
     BlockSignal(errno::Error),
-    /// The signal mask could not be retrieved.
-    RetrieveSignalMask(c_int),
-    /// The signal could not be unblocked.
-    UnblockSignal(errno::Error),
-    /// Failed to wait for given signal.
-    ClearWaitPending(errno::Error),
-    /// Failed to get pending signals.
-    ClearGetPending(errno::Error),
     /// Failed to check if given signal is in the set of pending signals.
     ClearCheckPending(errno::Error),
+    /// Failed to get pending signals.
+    ClearGetPending(errno::Error),
+    /// Failed to wait for given signal.
+    ClearWaitPending(errno::Error),
+    /// Failed to check if the requested signal is in the blocked set already.
+    CompareBlockedSignals(errno::Error),
+    /// Couldn't create a sigset.
+    CreateSigset(errno::Error),
+    /// The signal mask could not be retrieved.
+    RetrieveSignalMask(c_int),
+    /// The wrapped signal has already been blocked.
+    SignalAlreadyBlocked(c_int),
+    /// Failed to wait with timeout for a signal to arrive.
+    TimedWait(errno::Error),
+    /// The signal could not be unblocked.
+    UnblockSignal(errno::Error),
+    /// Failed to wait for a signal to arrive.
+    Wait(errno::Error),
 }
 
 impl Display for Error {
@@ -52,27 +57,33 @@ impl Display for Error {
         use self::Error::*;
 
         match self {
-            CreateSigset(e) => write!(f, "couldn't create a sigset: {}", e),
-            SignalAlreadyBlocked(num) => write!(f, "signal {} already blocked", num),
-            CompareBlockedSignals(e) => write!(
-                f,
-                "failed to check whether requested signal is in the blocked set: {}",
-                e,
-            ),
             BlockSignal(e) => write!(f, "signal could not be blocked: {}", e),
-            RetrieveSignalMask(errno) => write!(
-                f,
-                "failed to retrieve signal mask: {}",
-                io::Error::from_raw_os_error(*errno),
-            ),
-            UnblockSignal(e) => write!(f, "signal could not be unblocked: {}", e),
-            ClearWaitPending(e) => write!(f, "failed to wait for given signal: {}", e),
-            ClearGetPending(e) => write!(f, "failed to get pending signals: {}", e),
             ClearCheckPending(e) => write!(
                 f,
                 "failed to check whether given signal is in the pending set: {}",
                 e,
             ),
+            ClearGetPending(e) => write!(f, "failed to get pending signals: {}", e),
+            ClearWaitPending(e) => write!(f, "failed to wait for given signal: {}", e),
+            CompareBlockedSignals(e) => write!(
+                f,
+                "failed to check whether requested signal is in the blocked set: {}",
+                e,
+            ),
+            CreateSigset(e) => write!(f, "couldn't create a sigset: {}", e),
+            RetrieveSignalMask(errno) => write!(
+                f,
+                "failed to retrieve signal mask: {}",
+                io::Error::from_raw_os_error(*errno),
+            ),
+            SignalAlreadyBlocked(num) => write!(f, "signal {} already blocked", num),
+            TimedWait(e) => write!(
+                f,
+                "failed to wait with timeout for a signal to arrive: {}",
+                e
+            ),
+            UnblockSignal(e) => write!(f, "signal could not be unblocked: {}", e),
+            Wait(e) => write!(f, "failed to wait for a signal to arrive: {}", e),
         }
     }
 }
@@ -402,6 +413,77 @@ pub fn clear_signal(num: c_int) -> SignalResult<()> {
     Ok(())
 }
 
+/// Suspend execution until a signal is pending.
+///
+/// According to the [man page](https://linux.die.net/man/2/sigtimedwait), the caller should block
+/// the signals prior to waiting on them via [`block_signal`](fn.block_signal.html) and should make
+/// sure that no signal handlers are configured for them.
+///
+/// # Arguments
+///
+/// * `signals`: the signals that unblock execution. If none are specified, any pending signal will
+///              unblock execution.
+/// * `timeout_nanos`: optional timeout to wait for a signal to be pending. If `None` is specified,
+///                    execution remains suspended until a signal arrives.
+///
+/// # Examples
+///
+/// ```rust
+/// # extern crate libc;
+/// extern crate vmm_sys_util;
+/// # use std::thread;
+/// # use std::time::Duration;
+/// use vmm_sys_util::signal::{block_signal, wait_for_signals, Killable, SIGRTMIN};
+///
+/// let signal = SIGRTMIN() + 2;
+/// let signals = vec![signal];
+/// block_signal(signal).unwrap();
+/// let killable = thread::spawn(move || {
+///     assert!(wait_for_signals(&signals, None).is_ok());
+/// });
+/// thread::sleep(Duration::from_millis(100));
+/// assert!(killable.kill(signal).is_ok());
+/// killable.join().unwrap();
+///
+/// let signals = vec![signal];
+/// let killable = thread::spawn(move || {
+///     assert!(wait_for_signals(&signals, Some(500_000_000)).is_ok());
+/// });
+/// thread::sleep(Duration::from_millis(600));
+/// killable.join().unwrap();
+/// ```
+pub fn wait_for_signals(signals: &[c_int], timeout_nanos: Option<c_longlong>) -> SignalResult<()> {
+    let mut sigset: sigset_t = create_sigset(signals).map_err(Error::CreateSigset)?;
+    if signals.is_empty() {
+        unsafe { sigfillset(&mut sigset) };
+    }
+
+    if let Some(nanos) = timeout_nanos {
+        let duration = timespec {
+            tv_sec: nanos / 1_000_000_000,
+            tv_nsec: nanos % 1_000_000_000,
+        };
+        let ret = unsafe { sigtimedwait(&sigset, null_mut(), &duration) };
+        if ret < 0 {
+            let e = errno::Error::last();
+            match e.errno() {
+                // `EAGAIN` means no signal became pending in the duration specified.
+                EAGAIN => (),
+                _ => {
+                    return Err(Error::TimedWait(e));
+                }
+            }
+        }
+    } else {
+        let ret = unsafe { sigwaitinfo(&sigset, null_mut()) };
+        if ret < 0 {
+            return Err(Error::Wait(errno::Error::last()));
+        }
+    }
+
+    Ok(())
+}
+
 /// Trait for threads that can be signalled via `pthread_kill`.
 ///
 /// Note that this is only useful for signals between `SIGRTMIN()` and
@@ -568,5 +650,85 @@ mod tests {
         // Send a signal to the thread.
         assert!(killable.kill(SIGRTMIN() + 1).is_ok());
         killable.join().unwrap();
+    }
+
+    #[test]
+    fn test_wait() {
+        let signal = SIGRTMIN() + 2;
+        let signals = vec![signal];
+        block_signal(signal).unwrap();
+
+        let killable = thread::spawn(move || {
+            assert!(wait_for_signals(&signals, None).is_ok());
+        });
+
+        thread::sleep(Duration::from_millis(100));
+        assert!(killable.kill(signal).is_ok());
+        killable.join().unwrap();
+
+        let signals = vec![signal];
+        let killable = thread::spawn(move || {
+            assert!(wait_for_signals(&signals, Some(500_000_000)).is_ok());
+        });
+        thread::sleep(Duration::from_millis(600));
+        killable.join().unwrap();
+    }
+
+    #[test]
+    fn test_error_messages() {
+        #[cfg(target_env = "musl")]
+        let errmsg = "No error information (os error 0)";
+        #[cfg(target_env = "gnu")]
+        let errmsg = "Success (os error 0)";
+
+        assert_eq!(
+            format!("{}", Error::BlockSignal(errno::Error::new(0))),
+            format!("signal could not be blocked: {}", errmsg)
+        );
+        assert_eq!(
+            format!("{}", Error::ClearCheckPending(errno::Error::new(0))),
+            format!(
+                "failed to check whether given signal is in the pending set: {}",
+                errmsg
+            )
+        );
+        assert_eq!(
+            format!("{}", Error::ClearGetPending(errno::Error::new(0))),
+            format!("failed to get pending signals: {}", errmsg)
+        );
+        assert_eq!(
+            format!("{}", Error::ClearWaitPending(errno::Error::new(0))),
+            format!("failed to wait for given signal: {}", errmsg)
+        );
+        assert_eq!(
+            format!("{}", Error::CompareBlockedSignals(errno::Error::new(0))),
+            format!(
+                "failed to check whether requested signal is in the blocked set: {}",
+                errmsg
+            )
+        );
+        assert_eq!(
+            format!("{}", Error::CreateSigset(errno::Error::new(0))),
+            format!("couldn't create a sigset: {}", errmsg)
+        );
+        assert_eq!(
+            format!("{}", Error::RetrieveSignalMask(0)),
+            format!("failed to retrieve signal mask: {}", errmsg)
+        );
+        assert_eq!(
+            format!("{}", Error::SignalAlreadyBlocked(0)),
+            "signal 0 already blocked"
+        );
+        assert_eq!(
+            format!("{}", Error::TimedWait(errno::Error::new(0))),
+            format!(
+                "failed to wait with timeout for a signal to arrive: {}",
+                errmsg
+            )
+        );
+        assert_eq!(
+            format!("{}", Error::Wait(errno::Error::new(0))),
+            format!("failed to wait for a signal to arrive: {}", errmsg)
+        );
     }
 }

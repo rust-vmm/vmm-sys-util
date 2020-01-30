@@ -1,3 +1,9 @@
+# Unreleased
+
+* Added the `signal::wait_for_signals` function, which suspends execution until
+  either a specified signal or any signal becomes pending, either indefinitely
+  or with a timeout.
+
 # v0.5.0
 
 * Added conditionally compiled `serde` compatibility to `FamStructWrapper`,
