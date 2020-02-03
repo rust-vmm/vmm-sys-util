@@ -116,6 +116,12 @@ impl From<io::Error> for Error {
     }
 }
 
+impl Into<io::Error> for Error {
+    fn into(self) -> io::Error {
+        io::Error::from_raw_os_error(self.0)
+    }
+}
+
 /// Returns the last `errno` as a [`Result`] that is always an error.
 ///
 /// [`Result`]: type.Result.html
@@ -165,6 +171,10 @@ mod tests {
 
         // Test that calling `last()` returns the same error as `errno_result()`.
         assert_eq!(last_err, Error::last());
+
+        let last_err: io::Error = last_err.into();
+        // Test creating a `std::io::Error` from an `Error`
+        assert_eq!(io::Error::last_os_error().kind(), last_err.kind());
     }
 
     #[test]
