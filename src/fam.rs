@@ -16,6 +16,14 @@
 //!
 //! For example the KVM API has many structures of this kind.
 
+#[cfg(feature = "with-serde")]
+use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
+#[cfg(feature = "with-serde")]
+use serde::{ser::SerializeTuple, Serialize, Serializer};
+#[cfg(feature = "with-serde")]
+use std::fmt;
+#[cfg(feature = "with-serde")]
+use std::marker::PhantomData;
 use std::mem::{self, size_of};
 
 /// Errors associated with the [`FamStructWrapper`](struct.FamStructWrapper.html) struct.
@@ -417,6 +425,66 @@ impl<T: Default + FamStruct> From<Vec<T>> for FamStructWrapper<T> {
     }
 }
 
+#[cfg(feature = "with-serde")]
+impl<T: Default + FamStruct + Serialize> Serialize for FamStructWrapper<T>
+where
+    <T as FamStruct>::Entry: serde::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_tuple(2)?;
+        s.serialize_element(self.as_fam_struct_ref())?;
+        s.serialize_element(self.as_slice())?;
+        s.end()
+    }
+}
+
+#[cfg(feature = "with-serde")]
+impl<'de, T: Default + FamStruct + Deserialize<'de>> Deserialize<'de> for FamStructWrapper<T>
+where
+    <T as FamStruct>::Entry: std::marker::Copy + serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct FamStructWrapperVisitor<X> {
+            dummy: PhantomData<X>,
+        }
+
+        impl<'de, X: Default + FamStruct + Deserialize<'de>> Visitor<'de> for FamStructWrapperVisitor<X>
+        where
+            <X as FamStruct>::Entry: std::marker::Copy + serde::Deserialize<'de>,
+        {
+            type Value = FamStructWrapper<X>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("FamStructWrapper")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<FamStructWrapper<X>, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let header = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let entries: Vec<X::Entry> = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+
+                let mut result: Self::Value = FamStructWrapper::from_entries(entries.as_slice());
+                std::mem::replace(&mut result.mem_allocator[0], header);
+                Ok(result)
+            }
+        }
+
+        deserializer.deserialize_tuple(2, FamStructWrapperVisitor { dummy: PhantomData })
+    }
+}
+
 /// Generate `FamStruct` implementation for structs with flexible array member.
 #[macro_export]
 macro_rules! generate_fam_struct_impl {
@@ -452,6 +520,14 @@ macro_rules! generate_fam_struct_impl {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "with-serde")]
+    extern crate serde_json;
+
+    #[cfg(feature = "with-serde")]
+    use serde::Serialize;
+    #[cfg(feature = "with-serde")]
+    use serde_derive::{Deserialize, Serialize};
+
     use super::*;
 
     const MAX_LEN: usize = 100;
@@ -479,6 +555,26 @@ mod tests {
         #[inline]
         pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [T] {
             ::std::slice::from_raw_parts_mut(self.as_mut_ptr(), len)
+        }
+    }
+
+    #[cfg(feature = "with-serde")]
+    impl<T> Serialize for __IncompleteArrayField<T> {
+        fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            [0u8; 0].serialize(serializer)
+        }
+    }
+
+    #[cfg(feature = "with-serde")]
+    impl<'de, T> Deserialize<'de> for __IncompleteArrayField<T> {
+        fn deserialize<D>(_: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Ok(__IncompleteArrayField::new())
         }
     }
 
@@ -741,5 +837,52 @@ mod tests {
 
         let data = wrapper.into_raw();
         assert_eq!(data[0].len, 2);
+    }
+
+    #[cfg(feature = "with-serde")]
+    #[test]
+    fn test_ser_deser() {
+        #[repr(C)]
+        #[derive(Default)]
+        #[cfg_attr(feature = "with-serde", derive(Deserialize, Serialize))]
+        struct Message {
+            pub len: u32,
+            pub padding: u32,
+            pub value: u32,
+            #[cfg_attr(feature = "with-serde", serde(skip))]
+            pub entries: __IncompleteArrayField<u32>,
+        }
+
+        generate_fam_struct_impl!(Message, u32, entries, u32, len, 100);
+
+        type MessageFamStructWrapper = FamStructWrapper<Message>;
+
+        let data = vec![
+            Message {
+                len: 2,
+                padding: 0,
+                value: 42,
+                entries: __IncompleteArrayField::new(),
+            },
+            Message {
+                len: 0xA5,
+                padding: 0x1e,
+                value: 0,
+                entries: __IncompleteArrayField::new(),
+            },
+        ];
+
+        let wrapper = unsafe { MessageFamStructWrapper::from_raw(data) };
+        let data_ser = serde_json::to_string(&wrapper).unwrap();
+        assert_eq!(
+            data_ser,
+            "[{\"len\":2,\"padding\":0,\"value\":42},[165,30]]"
+        );
+        let data_deser =
+            serde_json::from_str::<MessageFamStructWrapper>(data_ser.as_str()).unwrap();
+        assert!(wrapper.eq(&data_deser));
+
+        let bad_data_ser = r#"{"foo": "bar"}"#;
+        assert!(serde_json::from_str::<MessageFamStructWrapper>(bad_data_ser).is_err());
     }
 }

@@ -6,6 +6,10 @@
 
 #![deny(missing_docs)]
 extern crate libc;
+#[cfg(feature = "with-serde")]
+extern crate serde;
+#[cfg(feature = "with-serde")]
+extern crate serde_derive;
 
 #[cfg(unix)]
 mod unix;
