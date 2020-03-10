@@ -19,4 +19,5 @@ pub use unix::*;
 pub mod errno;
 pub mod fam;
 pub mod rand;
+pub mod struct_util;
 pub mod tempfile;
