@@ -1,6 +1,7 @@
 #[macro_use]
 pub mod ioctl;
 pub mod aio;
+pub mod epoll;
 pub mod eventfd;
 pub mod fallocate;
 pub mod file_traits;
