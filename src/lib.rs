@@ -5,6 +5,9 @@
 //! [rust-vmm](https://github.com/rust-vmm/community) components.
 
 #![deny(missing_docs)]
+#[cfg(unix)]
+#[macro_use]
+extern crate bitflags;
 extern crate libc;
 #[cfg(feature = "with-serde")]
 extern crate serde;
@@ -19,4 +22,5 @@ pub use unix::*;
 pub mod errno;
 pub mod fam;
 pub mod rand;
+pub mod syscall;
 pub mod tempfile;
