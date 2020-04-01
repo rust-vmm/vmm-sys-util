@@ -264,16 +264,16 @@ mod test {
     use std::os::unix::io::AsRawFd;
 
     #[test]
-    fn new_context() {
+    fn test_new_context() {
         let _ = IoContext::new(0).unwrap_err();
     }
 
     #[test]
-    fn cancel_request() {
+    fn test_cancel_request() {
         let file = File::open("/dev/zero").unwrap();
 
         let ctx = IoContext::new(128).unwrap();
-        let mut buf: [u8; 16384] = unsafe { std::mem::uninitialized() };
+        let mut buf: [u8; 16384] = [0u8; 16384];
         let iocbs = [&mut IoControlBlock {
             aio_fildes: file.as_raw_fd() as u32,
             aio_lio_opcode: IOCB_CMD_PREAD as u16,
@@ -293,18 +293,18 @@ mod test {
             .unwrap();
         assert_eq!(err, libc::EINVAL);
 
-        let mut events = [unsafe { std::mem::uninitialized::<IoEvent>() }];
+        let mut events = [IoEvent::default()];
         rc = ctx.get_events(1, &mut events, None).unwrap();
         assert_eq!(rc, 1);
         assert!(events[0].res > 0);
     }
 
     #[test]
-    fn read_zero() {
+    fn test_read_zero() {
         let file = File::open("/dev/zero").unwrap();
 
         let ctx = IoContext::new(128).unwrap();
-        let mut buf: [u8; 4096] = unsafe { std::mem::uninitialized() };
+        let mut buf: [u8; 4096] = [0u8; 4096];
         let iocbs = [
             &mut IoControlBlock {
                 aio_fildes: file.as_raw_fd() as u32,
@@ -325,7 +325,7 @@ mod test {
         let mut rc = ctx.submit(&iocbs[..]).unwrap();
         assert_eq!(rc, 2);
 
-        let mut events = [unsafe { std::mem::uninitialized::<IoEvent>() }];
+        let mut events = [IoEvent::default()];
         rc = ctx.get_events(1, &mut events, None).unwrap();
         assert_eq!(rc, 1);
         assert!(events[0].res > 0);
