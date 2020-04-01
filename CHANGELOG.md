@@ -1,7 +1,9 @@
-# Unreleased
+# v0.5.0
 
 * Added conditionally compiled `serde` compatibility to `FamStructWrapper`,
   gated by the `with-serde` feature.
+* Implemented `Into<std::io::Error` for `errno::Error`.
+* Added a wrapper over `libc::epoll` used for basic epoll operations.
 
 # v0.4.0
 
