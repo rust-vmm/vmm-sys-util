@@ -180,7 +180,7 @@ mod tests {
     #[test]
     pub fn test_display() {
         // Test the display implementation.
-        #[cfg(unix)]
+        #[cfg(linux)]
         assert_eq!(
             format!("{}", Error::new(libc::EBADF)),
             "Bad file descriptor (os error 9)"
