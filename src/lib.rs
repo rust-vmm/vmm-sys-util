@@ -15,8 +15,13 @@ extern crate serde;
 extern crate serde_derive;
 
 #[cfg(linux)]
-mod unix;
+mod linux;
 #[cfg(linux)]
+pub use linux::*;
+
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
 pub use unix::*;
 
 pub mod errno;
