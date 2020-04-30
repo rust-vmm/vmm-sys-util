@@ -16,7 +16,7 @@ libc = ">=0.2.39"
 serde = { version = ">=1.0.27", optional = true }
 serde_derive = { version = ">=1.0.27", optional = true }
 
-[target.'cfg(linux)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 bitflags = "1.0"
 
 [dev-dependencies]
