@@ -1,3 +1,12 @@
+# v0.6.0
+
+* Derived Copy for EpollEvent.
+* Implemented Debug for EpollEvent.
+* Changed `Epoll::ctl` signature such that `EpollEvent` is passed by
+  value and not by reference.
+* Enabled this crate to be used on other Unixes (besides Linux) by using
+  target_os = linux where appropriate.
+
 # v0.5.0
 
 * Added conditionally compiled `serde` compatibility to `FamStructWrapper`,
