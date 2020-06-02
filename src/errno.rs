@@ -116,9 +116,9 @@ impl From<io::Error> for Error {
     }
 }
 
-impl Into<io::Error> for Error {
-    fn into(self) -> io::Error {
-        io::Error::from_raw_os_error(self.0)
+impl From<Error> for io::Error {
+    fn from(err: Error) -> io::Error {
+        io::Error::from_raw_os_error(err.0)
     }
 }
 
