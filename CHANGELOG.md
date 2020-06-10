@@ -1,3 +1,7 @@
+# v0.6.1
+
+* Implemented `From<io::Error>` for `errno::Error`.
+
 # v0.6.0
 
 * Derived Copy for EpollEvent.
