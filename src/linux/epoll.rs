@@ -8,13 +8,15 @@ use std::io;
 use std::ops::{Deref, Drop};
 use std::os::unix::io::{AsRawFd, RawFd};
 
+#[cfg(target_os = "linux")]
+use bitflags::bitflags;
 use libc::{
     epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLEXCLUSIVE, EPOLLHUP,
     EPOLLIN, EPOLLONESHOT, EPOLLOUT, EPOLLPRI, EPOLLRDHUP, EPOLLWAKEUP, EPOLL_CLOEXEC,
     EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
 };
 
-use syscall::SyscallReturnCode;
+use crate::syscall::SyscallReturnCode;
 
 /// Wrapper over `EPOLL_CTL_*` operations that can be performed on a file descriptor.
 #[repr(i32)]

@@ -8,13 +8,12 @@
 //! as for encryption but will probably be suitable when you want locally
 //! unique ID's that will not be shared over the network.
 
-extern crate libc;
 use std::ffi::OsString;
 use std::str;
 
 /// Gets an ever increasing u64 (at least for this process).
 ///
-/// The number retreived will be based upon the time of the last reboot (x86_64)
+/// The number retrieved will be based upon the time of the last reboot (x86_64)
 /// and something undefined for other architectures.
 pub fn timestamp_cycles() -> u64 {
     #[cfg(target_arch = "x86_64")]

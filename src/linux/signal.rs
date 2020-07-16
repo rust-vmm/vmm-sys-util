@@ -15,7 +15,7 @@ use libc::{
     EINTR, EINVAL, SIG_BLOCK, SIG_UNBLOCK,
 };
 
-use errno;
+use crate::errno;
 use std::fmt::{self, Display};
 use std::io;
 use std::mem;
@@ -48,7 +48,7 @@ pub enum Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;
 
         match self {
