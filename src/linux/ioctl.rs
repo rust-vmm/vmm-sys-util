@@ -8,6 +8,7 @@
 
 //! Macros and functions for working with
 //! [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html).
+
 use libc;
 use std::os::raw::{c_int, c_ulong, c_void};
 use std::os::unix::io::AsRawFd;

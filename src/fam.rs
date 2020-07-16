@@ -521,11 +521,6 @@ macro_rules! generate_fam_struct_impl {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "with-serde")]
-    extern crate serde_json;
-
-    #[cfg(feature = "with-serde")]
-    use serde::Serialize;
-    #[cfg(feature = "with-serde")]
     use serde_derive::{Deserialize, Serialize};
 
     use super::*;

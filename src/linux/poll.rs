@@ -215,7 +215,7 @@ impl<'a, T: PollToken> PollEvents<'a, T> {
     }
 
     /// Iterates over each event.
-    pub fn iter(&self) -> PollEventIter<slice::Iter<epoll_event>, T> {
+    pub fn iter(&self) -> PollEventIter<'_, slice::Iter<'_, epoll_event>, T> {
         PollEventIter {
             mask: 0xffff_ffff,
             iter: self.events[..self.count].iter(),
@@ -224,7 +224,7 @@ impl<'a, T: PollToken> PollEvents<'a, T> {
     }
 
     /// Iterates over each readable event.
-    pub fn iter_readable(&self) -> PollEventIter<slice::Iter<epoll_event>, T> {
+    pub fn iter_readable(&self) -> PollEventIter<'_, slice::Iter<'_, epoll_event>, T> {
         PollEventIter {
             mask: EPOLLIN as u32,
             iter: self.events[..self.count].iter(),
@@ -233,7 +233,7 @@ impl<'a, T: PollToken> PollEvents<'a, T> {
     }
 
     /// Iterates over each hungup event.
-    pub fn iter_hungup(&self) -> PollEventIter<slice::Iter<epoll_event>, T> {
+    pub fn iter_hungup(&self) -> PollEventIter<'_, slice::Iter<'_, epoll_event>, T> {
         PollEventIter {
             mask: EPOLLHUP as u32,
             iter: self.events[..self.count].iter(),
@@ -255,7 +255,7 @@ impl<T: PollToken> PollEventsOwned<T> {
     ///
     /// Takes a reference to the events so it can be iterated via methods in
     /// [`PollEvents`](struct.PollEvents.html).
-    pub fn as_ref(&self) -> PollEvents<T> {
+    pub fn as_ref(&self) -> PollEvents<'_, T> {
         PollEvents {
             count: self.count,
             events: self.events.borrow(),
@@ -829,7 +829,7 @@ impl<T: PollToken> PollContext<T> {
     ///
     /// # Panics
     /// Panics if the returned `PollEvents` structure is not dropped before subsequent `wait` calls.
-    pub fn wait(&self) -> Result<PollEvents<T>> {
+    pub fn wait(&self) -> Result<PollEvents<'_, T>> {
         self.wait_timeout(Duration::new(i64::MAX as u64, 0))
     }
 
@@ -842,7 +842,7 @@ impl<T: PollToken> PollContext<T> {
     /// # Arguments
     ///
     /// * `timeout`: specify the time that will block.
-    pub fn wait_timeout(&self, timeout: Duration) -> Result<PollEvents<T>> {
+    pub fn wait_timeout(&self, timeout: Duration) -> Result<PollEvents<'_, T>> {
         let events = self.epoll_ctx.wait_timeout(&self.events, timeout)?;
         let hangups = events.iter_hungup().count();
         self.check_for_hungup_busy_loop(hangups);

@@ -6,6 +6,7 @@ description = "A system utility set"
 repository = "https://github.com/rust-vmm/vmm-sys-util"
 readme = "README.md"
 keywords = ["utils"]
+edition = "2018"
 license = "Apache-2.0 AND BSD-3-Clause"
 
 [features]

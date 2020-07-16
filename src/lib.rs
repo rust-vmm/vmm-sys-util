@@ -5,24 +5,16 @@
 //! [rust-vmm](https://github.com/rust-vmm/community) components.
 
 #![deny(missing_docs)]
-#[cfg(target_os = "linux")]
-#[macro_use]
-extern crate bitflags;
-extern crate libc;
-#[cfg(feature = "with-serde")]
-extern crate serde;
-#[cfg(feature = "with-serde")]
-extern crate serde_derive;
 
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::*;
+pub use crate::linux::*;
 
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
-pub use unix::*;
+pub use crate::unix::*;
 
 pub mod errno;
 pub mod fam;
