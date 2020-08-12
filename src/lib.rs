@@ -18,6 +18,7 @@ pub use crate::unix::*;
 
 pub mod errno;
 pub mod fam;
+pub mod metric;
 pub mod rand;
 pub mod syscall;
 pub mod tempfile;
