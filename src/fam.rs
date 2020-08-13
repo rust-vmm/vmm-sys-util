@@ -221,12 +221,14 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     /// Sometimes we already have the raw content of an FAM struct represented as `Vec<T>`,
     /// and want to use the FamStructWrapper as accessors.
     ///
-    /// This function is unsafe because the caller needs to ensure that the raw content is correctly
-    /// layed out.
-    ///
     /// # Arguments
     ///
     /// * `content` - The raw content represented as `Vec[T]`.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because the caller needs to ensure that the raw content is
+    /// correctly layed out.
     pub unsafe fn from_raw(content: Vec<T>) -> Self {
         FamStructWrapper {
             mem_allocator: content,

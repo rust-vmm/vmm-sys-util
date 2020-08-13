@@ -11,8 +11,6 @@ use std::fs;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-use libc;
-
 use crate::errno::{errno_result, Error, Result};
 
 /// Wrapper over a temporary directory.
