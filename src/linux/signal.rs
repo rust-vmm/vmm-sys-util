@@ -279,6 +279,9 @@ pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
 ///
 /// block_signal(1).unwrap();
 /// ```
+// Allowing comparison chain because rewriting it with match makes the code less readable.
+// Also, the risk of having non-exhaustive checks is low.
+#[allow(clippy::comparison_chain)]
 pub fn block_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
