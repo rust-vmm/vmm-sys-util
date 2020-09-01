@@ -11,8 +11,8 @@
 
 use libc::{
     c_int, c_void, pthread_kill, pthread_sigmask, pthread_t, sigaction, sigaddset, sigemptyset,
-    sigfillset, siginfo_t, sigismember, sigset_t, 
-    EINVAL, SIG_BLOCK, SIG_UNBLOCK, sysconf, _SC_SIGRT_MIN, _SC_SIGRT_MAX,
+    sigfillset, siginfo_t, sigismember, sigset_t, sysconf, EINVAL, SIG_BLOCK, SIG_UNBLOCK,
+    _SC_SIGRT_MAX, _SC_SIGRT_MIN,
 };
 
 use crate::errno;
@@ -95,14 +95,14 @@ pub type SignalHandler =
 #[allow(non_snake_case)]
 pub fn SIGRTMIN() -> c_int {
     unsafe { sysconf(_SC_SIGRT_MIN) as c_int }
-//    unsafe { __libc_current_sigrtmin() }
+    //    unsafe { __libc_current_sigrtmin() }
 }
 
 /// Return the maximum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
 pub fn SIGRTMAX() -> c_int {
     unsafe { sysconf(_SC_SIGRT_MAX) as c_int }
-//    unsafe { __libc_current_sigrtmax() }
+    //    unsafe { __libc_current_sigrtmax() }
 }
 
 /// Verify that a signal number is valid.
@@ -462,5 +462,4 @@ mod tests {
         unblock_signal(signal).unwrap();
         assert!(!get_blocked_signals().unwrap().contains(&(signal)));
     }
-
 }

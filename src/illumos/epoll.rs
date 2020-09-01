@@ -10,9 +10,9 @@ use std::os::unix::io::{AsRawFd, RawFd};
 
 use bitflags::bitflags;
 use libc::{
-    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLHUP,
-    EPOLLIN, EPOLLONESHOT, EPOLLOUT, EPOLLPRI, EPOLLRDHUP, EPOLLWAKEUP, EPOLL_CLOEXEC,
-    EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
+    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN,
+    EPOLLONESHOT, EPOLLOUT, EPOLLPRI, EPOLLRDHUP, EPOLLWAKEUP, EPOLL_CLOEXEC, EPOLL_CTL_ADD,
+    EPOLL_CTL_DEL, EPOLL_CTL_MOD,
 };
 
 use crate::syscall::SyscallReturnCode;
