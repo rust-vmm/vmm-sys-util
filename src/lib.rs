@@ -16,6 +16,11 @@ mod unix;
 #[cfg(unix)]
 pub use crate::unix::*;
 
+#[cfg(target_os = "illumos")]
+mod illumos;
+#[cfg(target_os = "illumos")]
+pub use crate::illumos::*;
+
 pub mod errno;
 pub mod fam;
 pub mod rand;
