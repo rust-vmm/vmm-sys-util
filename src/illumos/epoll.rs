@@ -10,9 +10,9 @@ use std::os::unix::io::{AsRawFd, RawFd};
 
 use bitflags::bitflags;
 use libc::{
-    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN,
-    EPOLLONESHOT, EPOLLOUT, EPOLLPRI, EPOLLRDHUP, EPOLLWAKEUP, EPOLL_CLOEXEC, EPOLL_CTL_ADD,
-    EPOLL_CTL_DEL, EPOLL_CTL_MOD,
+    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLEXCLUSIVE, EPOLLHUP,
+    EPOLLIN, EPOLLONESHOT, EPOLLOUT, EPOLLPRI, EPOLLRDHUP, EPOLLWAKEUP, EPOLL_CLOEXEC,
+    EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
 };
 
 use crate::syscall::SyscallReturnCode;
@@ -57,6 +57,13 @@ bitflags! {
         const WAKE_UP = EPOLLWAKEUP as u32;
         /// Sets the one-shot behavior for the associated file descriptor.
         const ONE_SHOT = EPOLLONESHOT as u32;
+        /// Sets an exclusive wake up mode for the epoll file descriptor that is being
+        /// attached to the associated file descriptor.
+        /// When a wake up event occurs and multiple epoll file descriptors are attached to
+        /// the same target file using this mode, one or more of the epoll file descriptors
+        /// will receive an event with `epoll_wait`. The default here is for all those file
+        /// descriptors to receive an event.
+        const EXCLUSIVE = EPOLLEXCLUSIVE as u32;
     }
 }
 
