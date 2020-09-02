@@ -82,9 +82,10 @@ mod tests {
 
     #[test]
     fn seek_data() {
-	// Note: the behavior of Illumos is different here, because tmpfs on
-	// Illumos doesn't fully support SEEK_DATA in lseek. Outside of /tmp,
-	// Illumos has the same behavior as Linux.
+        // Note: the behavior of Illumos is different for these tests,
+        // because tmpfs on Illumos doesn't fully support SEEK_DATA in
+        // lseek. Outside of /tmp, Illumos has mostly the same
+        // behavior as Linux, except for the handling of sparse files.
         let tempdir = TempDir::new_with_prefix("seek_data_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("test_file");
@@ -110,8 +111,8 @@ mod tests {
         let b = [0x55u8; 0x10000];
         file.seek(SeekFrom::Start(0x10000)).unwrap();
         file.write_all(&b).unwrap();
-        assert_eq!(file.seek_data(0).unwrap(), Some(0x10000));
-        assert_eq!(seek_cur(&mut file), 0x10000);
+        assert_eq!(file.seek_data(0).unwrap(), Some(0));
+        assert_eq!(seek_cur(&mut file), 0);
 
         // seek_data within data should return the same offset
         assert_eq!(file.seek_data(0x10000).unwrap(), Some(0x10000));
@@ -123,8 +124,8 @@ mod tests {
 
         // Extend the file to add another hole after the data
         file.set_len(0x30000).unwrap();
-        assert_eq!(file.seek_data(0).unwrap(), Some(0x10000));
-        assert_eq!(seek_cur(&mut file), 0x10000);
+        assert_eq!(file.seek_data(0).unwrap(), Some(0));
+        assert_eq!(seek_cur(&mut file), 0);
         assert_eq!(file.seek_data(0x1FFFF).unwrap(), Some(0x1FFFF));
         assert_eq!(seek_cur(&mut file), 0x1FFFF);
         assert_eq!(file.seek_data(0x20000).unwrap(), None);
@@ -134,9 +135,10 @@ mod tests {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn seek_hole() {
-	// Note: the behavior of Illumos is different here, because tmpfs on
-	// Illumos doesn't fully support SEEK_HOLE in lseek. Outside of /tmp,
-	// Illumos has the same behavior as Linux.
+        // Note: the behavior of Illumos is different for these tests,
+        // because tmpfs on Illumos doesn't fully support SEEK_HOLE in
+        // lseek. Outside of /tmp, Illumos has mostly the same
+        // behavior as Linux, except for the handling of sparse files.
         let tempdir = TempDir::new_with_prefix("seek_hole_test").unwrap();
         let mut path = PathBuf::from(tempdir.as_path());
         path.push("test_file");
@@ -167,10 +169,10 @@ mod tests {
         file.write_all(&b).unwrap();
 
         // seek_hole within a hole should return the same offset
-        //assert_eq!(file.seek_hole(0).unwrap(), Some(0));
-        //assert_eq!(seek_cur(&mut file), 0);
-        //assert_eq!(file.seek_hole(0xFFFF).unwrap(), Some(0xFFFF));
-        //assert_eq!(seek_cur(&mut file), 0xFFFF);
+        assert_eq!(file.seek_hole(0).unwrap(), Some(0x20000));
+        assert_eq!(seek_cur(&mut file), 0x20000);
+        assert_eq!(file.seek_hole(0xFFFF).unwrap(), Some(0x20000));
+        assert_eq!(seek_cur(&mut file), 0x20000);
 
         // seek_hole within data should return the next hole (EOF)
         file.seek(SeekFrom::Start(0)).unwrap();
@@ -190,10 +192,10 @@ mod tests {
 
         // Extend the file to add another hole after the data
         file.set_len(0x30000).unwrap();
-        assert_eq!(file.seek_hole(0).unwrap(), Some(0));
-        assert_eq!(seek_cur(&mut file), 0);
-        assert_eq!(file.seek_hole(0xFFFF).unwrap(), Some(0xFFFF));
-        assert_eq!(seek_cur(&mut file), 0xFFFF);
+        assert_eq!(file.seek_hole(0).unwrap(), Some(0x20000));
+        assert_eq!(seek_cur(&mut file), 0x20000);
+        assert_eq!(file.seek_hole(0xFFFF).unwrap(), Some(0x20000));
+        assert_eq!(seek_cur(&mut file), 0x20000);
         file.seek(SeekFrom::Start(0)).unwrap();
         assert_eq!(file.seek_hole(0x10000).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
