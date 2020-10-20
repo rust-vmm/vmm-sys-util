@@ -48,7 +48,7 @@ impl TempFile {
     ///
     /// # Arguments
     ///
-    /// `prefix`: The path and filename where to creat the temporary file. Six
+    /// `prefix`: The path and filename where to create the temporary file. Six
     /// random alphanumeric characters will be added to the end of this to form
     /// the filename.
     pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
@@ -90,7 +90,7 @@ impl TempFile {
     /// Creates the TempFile.
     ///
     /// Creates a temporary file inside `$TMPDIR` if set, otherwise inside `/tmp`.
-    /// The filename will consist from six random alphanumeric characters.
+    /// The filename will consist of six random alphanumeric characters.
     pub fn new() -> Result<Self> {
         let in_tmp_dir = temp_dir();
         let temp_file = TempFile::new_in(in_tmp_dir.as_path())?;
@@ -106,12 +106,19 @@ impl TempFile {
         fs::remove_file(&self.path).map_err(Error::from)
     }
 
-    /// Returns the path to the tempfile if it is currently valid
+    /// Returns the path to the file if the `TempFile` object that is wrapping the file
+    /// is still in scope.
+    ///
+    /// If we remove the file by explicitly calling [`remove`](#method.remove),
+    /// `as_path()` can still be used to return the path to that file (even though that
+    /// path does not point at an existing entity anymore).
+    /// Calling `as_path()` after `remove()` is useful, for example, when you need a
+    /// random path string, but don't want an actual resource at that path.
     pub fn as_path(&self) -> &Path {
         &self.path
     }
 
-    /// Returns a reference to the File
+    /// Returns a reference to the File.
     pub fn as_file(&self) -> &File {
         // It's safe to unwrap because `file` can be `None` only after calling `into_file`
         // which consumes this object.
@@ -209,11 +216,15 @@ mod tests {
         let mut t = TempFile::new_with_prefix(prefix).unwrap();
         let path = t.as_path().to_owned();
 
-        // Check removal
+        // Check removal.
         assert!(t.remove().is_ok());
         assert!(!path.exists());
 
-        // Check removal doesn't error a second time
+        // Calling `as_path()` after the file was removed is allowed.
+        let path_2 = t.as_path().to_owned();
+        assert_eq!(path, path_2);
+
+        // Check trying to remove a second time returns an error.
         assert!(t.remove().is_err());
     }
 
