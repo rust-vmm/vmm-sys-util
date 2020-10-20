@@ -35,6 +35,10 @@ pub trait Metric {
 
 impl Metric for AtomicU64 {
     /// Adds `value` to the current counter.
+    ///
+    /// According to
+    /// [`fetch_add` documentation](https://doc.rust-lang.org/std/sync/atomic/struct.AtomicU64.html#method.fetch_add),
+    /// in case of an integer overflow, the counter starts over from 0.
     fn add(&self, value: u64) {
         self.fetch_add(value, Ordering::Relaxed);
     }
@@ -73,6 +77,8 @@ mod tests {
         fn inc_bark(&self);
         // Event to be called when the dog `eat`s.
         fn inc_eat(&self);
+        // Event to be called when the dog `eat`s a lot.
+        fn set_eat(&self, no_times: u64);
     }
 
     impl<T: DogEvents> Dog<T> {
@@ -84,6 +90,10 @@ mod tests {
         fn eat(&self) {
             println!("nom! nom!");
             self.metrics.inc_eat();
+        }
+
+        fn eat_more_times(&self, no_times: u64) {
+            self.metrics.set_eat(no_times);
         }
     }
 
@@ -111,6 +121,17 @@ mod tests {
             fn inc_eat(&self) {
                 self.eat.inc();
             }
+
+            fn set_eat(&self, no_times: u64) {
+                self.eat.set(no_times);
+            }
+        }
+
+        impl DogEventMetrics {
+            fn reset(&self) {
+                self.bark.reset();
+                self.eat.reset();
+            }
         }
 
         // This is the central object of mini-app built in this example.
@@ -125,6 +146,9 @@ mod tests {
         impl SystemMetrics {
             fn serialize(&self) -> String {
                 let mut serialized_metrics = format!("{:#?}", &self.dog_metrics);
+                // We can choose to reset the metrics right after we format them for serialization.
+                self.dog_metrics.reset();
+
                 serialized_metrics.retain(|c| !c.is_whitespace());
                 serialized_metrics
             }
@@ -139,5 +163,16 @@ mod tests {
         let expected_metrics = String::from("DogEventMetrics{bark:2,eat:1,}");
         let actual_metrics = system_metrics.serialize();
         assert_eq!(expected_metrics, actual_metrics);
+
+        assert_eq!(system_metrics.dog_metrics.eat.count(), 0);
+        assert_eq!(system_metrics.dog_metrics.bark.count(), 0);
+
+        // Set `std::u64::MAX` value to `eat` metric.
+        dog.eat_more_times(std::u64::MAX);
+        assert_eq!(system_metrics.dog_metrics.eat.count(), std::u64::MAX);
+        // Check that `add()` wraps around on overflow.
+        dog.eat();
+        dog.eat();
+        assert_eq!(system_metrics.dog_metrics.eat.count(), 1);
     }
 }
