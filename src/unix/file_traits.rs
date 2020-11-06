@@ -87,4 +87,15 @@ mod tests {
         f.set_len(10).unwrap();
         assert_eq!(f.seek(SeekFrom::End(0)).unwrap(), 10);
     }
+
+    #[test]
+    fn test_set_len_fails_when_file_not_opened_for_writing() {
+        let tempdir = TempDir::new_with_prefix("/tmp/set_len_test").unwrap();
+        let mut path = PathBuf::from(tempdir.as_path());
+        path.push("file");
+        File::create(path.clone()).unwrap();
+        let f = OpenOptions::new().read(true).open(&path).unwrap();
+        let result = f.set_len(10);
+        assert!(result.is_err());
+    }
 }
