@@ -1,3 +1,9 @@
+# v0.7.0
+
+* Switched to Rust edition 2018.
+* Added the `metric` module that provides a `Metric` interface as well as a
+  default implementation for `AtomicU64`.
+
 # v0.6.1
 
 * Implemented `From<io::Error>` for `errno::Error`.
