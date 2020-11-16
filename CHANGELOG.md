@@ -1,3 +1,14 @@
+# Changelog
+
+## [Unreleased]
+
+* Fixed the implementation of `write_zeroes` to use `FALLOC_FL_ZERO_RANGE`
+  instead of `FALLOC_FL_PUNCH_HOLE`.
+* Added `write_all_zeroes` to `WriteZeroes`, which calls `write_zeroes` in a
+  loop until the requested length is met.
+* Added a new trait, `WriteZeroesAt`, which allows giving the offset in file
+  instead of using the current cursor.
+
 # v0.7.0
 
 * Switched to Rust edition 2018.
