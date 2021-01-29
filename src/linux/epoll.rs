@@ -265,8 +265,6 @@ impl Epoll {
     ///
     /// # Arguments
     ///
-    /// * `max_events` - the maximum number of events that we want to be returned in
-    ///                  `events` buffer.
     /// * `timeout` - specifies for how long the `epoll_wait` system call will block
     ///               (measured in milliseconds).
     /// * `events` - points to a memory area that will be used for storing the events
@@ -292,15 +290,10 @@ impl Epoll {
     ///         EpollEvent::new(EventSet::OUT, 4),
     ///     )
     ///     .unwrap();
-    /// let ev_count = epoll.wait(10, -1, &mut ready_events[..]).unwrap();
+    /// let ev_count = epoll.wait(-1, &mut ready_events[..]).unwrap();
     /// assert_eq!(ev_count, 1);
     /// ```
-    pub fn wait(
-        &self,
-        max_events: usize,
-        timeout: i32,
-        events: &mut [EpollEvent],
-    ) -> io::Result<usize> {
+    pub fn wait(&self, timeout: i32, events: &mut [EpollEvent]) -> io::Result<usize> {
         // Safe because we give a valid epoll file descriptor and an array of epoll_event structures
         // that will be modified by the kernel to indicate information about the subset of file
         // descriptors in the interest list. We also check the return value.
@@ -308,7 +301,7 @@ impl Epoll {
             epoll_wait(
                 self.epoll_fd,
                 events.as_mut_ptr() as *mut epoll_event,
-                max_events as i32,
+                events.len() as i32,
                 timeout,
             )
         })
@@ -364,7 +357,6 @@ mod tests {
     fn test_epoll() {
         const DEFAULT__TIMEOUT: i32 = 250;
         const EVENT_BUFFER_SIZE: usize = 128;
-        const MAX_EVENTS: usize = 10;
 
         let epoll = Epoll::new().unwrap();
         assert_eq!(epoll.epoll_fd, epoll.as_raw_fd());
@@ -427,9 +419,7 @@ mod tests {
 
         // Let's check `epoll_wait()` behavior for our epoll instance.
         let mut ready_events = vec![EpollEvent::default(); EVENT_BUFFER_SIZE];
-        let mut ev_count = epoll
-            .wait(MAX_EVENTS, DEFAULT__TIMEOUT, &mut ready_events[..])
-            .unwrap();
+        let mut ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
 
         // We expect to have 3 fds in the ready list of epoll instance.
         assert_eq!(ev_count, 3);
@@ -475,9 +465,7 @@ mod tests {
             )
             .is_err());
 
-        let _ = epoll
-            .wait(MAX_EVENTS, DEFAULT__TIMEOUT, &mut ready_events[..])
-            .unwrap();
+        let _ = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
 
         // Let's check that Event fields were indeed changed for the `event_fd_1` fd.
         assert_eq!(ready_events[0].data(), 20);
@@ -494,9 +482,7 @@ mod tests {
             .is_ok());
 
         // In this particular case we expect to remain only with 2 fds in the ready list.
-        ev_count = epoll
-            .wait(MAX_EVENTS, DEFAULT__TIMEOUT, &mut ready_events[..])
-            .unwrap();
+        ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
         assert_eq!(ev_count, 2);
 
         // Let's also delete a fd from the interest list.
@@ -509,9 +495,7 @@ mod tests {
             .is_ok());
 
         // We expect to have only one fd remained in the ready list (event_fd_3).
-        ev_count = epoll
-            .wait(MAX_EVENTS, DEFAULT__TIMEOUT, &mut ready_events[..])
-            .unwrap();
+        ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
 
         assert_eq!(ev_count, 1);
         assert_eq!(ready_events[0].data(), event_fd_3.as_raw_fd() as u64);
