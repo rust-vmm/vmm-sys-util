@@ -8,6 +8,8 @@
   loop until the requested length is met.
 * Added a new trait, `WriteZeroesAt`, which allows giving the offset in file
   instead of using the current cursor.
+* Removed `max_events` from `Epoll::wait` which removes possible undefined 
+  behavior.
 
 # v0.7.0
 
