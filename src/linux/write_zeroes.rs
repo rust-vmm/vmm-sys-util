@@ -268,10 +268,6 @@ mod tests {
         for read in &readback[(0x1_8001 + 0x200)..SIZE] {
             assert_eq!(*read, NON_ZERO_VALUE);
         }
-
-        // It's ok to write zeroes after the end of the file, but the file size should not change.
-        assert!(f.write_all_zeroes_at(SIZE as u64 - 0x200, 0x400).is_ok());
-        assert_eq!(f.metadata().unwrap().len(), SIZE as u64);
     }
 
     #[test]
