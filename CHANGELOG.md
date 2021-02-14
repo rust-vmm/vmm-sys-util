@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+* Added writable()/has_error()/raw_events() to PollEvent.
 * Fixed the implementation of `write_zeroes` to use `FALLOC_FL_ZERO_RANGE`
   instead of `FALLOC_FL_PUNCH_HOLE`.
 * Added `write_all_zeroes` to `WriteZeroes`, which calls `write_zeroes` in a

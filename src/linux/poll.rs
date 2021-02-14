@@ -21,8 +21,8 @@ use std::thread;
 use std::time::Duration;
 
 use libc::{
-    c_int, epoll_create1, epoll_ctl, epoll_event, epoll_wait, EINTR, EPOLLHUP, EPOLLIN, EPOLLOUT,
-    EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
+    c_int, epoll_create1, epoll_ctl, epoll_event, epoll_wait, EINTR, EPOLLERR, EPOLLHUP, EPOLLIN,
+    EPOLLOUT, EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD,
 };
 
 use crate::errno::{errno_result, Error, Result};
@@ -149,6 +149,11 @@ impl<'a, T: PollToken> PollEvent<'a, T> {
         T::from_raw_token(self.event.u64)
     }
 
+    /// Get the raw events returned by the kernel.
+    pub fn raw_events(&self) -> u32 {
+        self.event.events
+    }
+
     /// Checks if the event is readable.
     ///
     /// True if the `fd` associated with this token in
@@ -157,12 +162,28 @@ impl<'a, T: PollToken> PollEvent<'a, T> {
         self.event.events & (EPOLLIN as u32) != 0
     }
 
+    /// Checks if the event is writable.
+    ///
+    /// True if the `fd` associated with this token in
+    /// [`PollContext::add`](struct.PollContext.html#method.add) is writable.
+    pub fn writable(&self) -> bool {
+        self.event.events & (EPOLLOUT as u32) != 0
+    }
+
     /// Checks if the event has been hangup on.
     ///
     /// True if the `fd` associated with this token in
     /// [`PollContext::add`](struct.PollContext.html#method.add) has been hungup on.
     pub fn hungup(&self) -> bool {
         self.event.events & (EPOLLHUP as u32) != 0
+    }
+
+    /// Checks if the event has associated error conditions.
+    ///
+    /// True if the `fd` associated with this token in
+    /// [`PollContext::add`](struct.PollContext.html#method.add) has associated error conditions.
+    pub fn has_error(&self) -> bool {
+        self.event.events & (EPOLLERR as u32) != 0
     }
 }
 
@@ -943,5 +964,27 @@ mod tests {
         let start_inst = Instant::now();
         ctx.wait_timeout(dur).unwrap();
         assert!(start_inst.elapsed() >= dur);
+    }
+
+    #[test]
+    fn test_poll_event() {
+        let event = epoll_event {
+            events: (EPOLLIN | EPOLLERR | EPOLLOUT | EPOLLHUP) as u32,
+            u64: 0x10,
+        };
+        let ev = PollEvent::<u32> {
+            event: &event,
+            token: PhantomData,
+        };
+
+        assert_eq!(ev.token(), 0x10);
+        assert_eq!(ev.readable(), true);
+        assert_eq!(ev.writable(), true);
+        assert_eq!(ev.hungup(), true);
+        assert_eq!(ev.has_error(), true);
+        assert_eq!(
+            ev.raw_events(),
+            (EPOLLIN | EPOLLERR | EPOLLOUT | EPOLLHUP) as u32
+        );
     }
 }
