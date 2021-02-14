@@ -286,6 +286,7 @@ impl<T: PollToken> PollEventsOwned<T> {
 }
 
 /// Watching events taken by [`PollContext`](struct.PollContext.html).
+#[derive(Copy, Clone)]
 pub struct WatchingEvents(u32);
 
 impl WatchingEvents {
