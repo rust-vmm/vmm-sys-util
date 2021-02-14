@@ -703,6 +703,7 @@ pub struct PollContext<T> {
     events: EpollEvents,
 
     // Hangup busy loop detection variables. See `check_for_hungup_busy_loop`.
+    check_for_hangup: bool,
     hangups: Cell<usize>,
     max_hangups: Cell<usize>,
 }
@@ -713,9 +714,15 @@ impl<T: PollToken> PollContext<T> {
         Ok(PollContext {
             epoll_ctx: EpollContext::new()?,
             events: EpollEvents::new(),
+            check_for_hangup: true,
             hangups: Cell::new(0),
             max_hangups: Cell::new(0),
         })
+    }
+
+    /// Enable/disable of checking for unhandled hangup events.
+    pub fn set_check_for_hangup(&mut self, enable: bool) {
+        self.check_for_hangup = enable;
     }
 
     /// Adds the given `fd` to this context and associates the given `token` with the `fd`'s
@@ -867,7 +874,9 @@ impl<T: PollToken> PollContext<T> {
     pub fn wait_timeout(&self, timeout: Duration) -> Result<PollEvents<'_, T>> {
         let events = self.epoll_ctx.wait_timeout(&self.events, timeout)?;
         let hangups = events.iter_hungup().count();
-        self.check_for_hungup_busy_loop(hangups);
+        if self.check_for_hangup {
+            self.check_for_hungup_busy_loop(hangups);
+        }
         Ok(events)
     }
 }
@@ -960,9 +969,11 @@ mod tests {
 
     #[test]
     fn test_poll_context_timeout() {
-        let ctx: PollContext<u32> = PollContext::new().unwrap();
+        let mut ctx: PollContext<u32> = PollContext::new().unwrap();
         let dur = Duration::from_millis(10);
         let start_inst = Instant::now();
+
+        ctx.set_check_for_hangup(false);
         ctx.wait_timeout(dur).unwrap();
         assert!(start_inst.elapsed() >= dur);
     }
