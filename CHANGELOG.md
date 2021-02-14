@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+* Added set_check_for_hangup() to PollContext.
 * Added writable()/has_error()/raw_events() to PollEvent.
 * Derived Copy/Clone for PollWatchingEvents.
 * Fixed the implementation of `write_zeroes` to use `FALLOC_FL_ZERO_RANGE`
