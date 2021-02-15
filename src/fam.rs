@@ -185,7 +185,15 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     /// # Arguments
     ///
     /// * `num_elements` - The number of elements in the FamStructWrapper.
-    pub fn new(num_elements: usize) -> FamStructWrapper<T> {
+    ///
+    /// # Errors
+    ///
+    /// When `num_elements` is greater than the max possible len, it returns
+    /// `Error::SizeLimitExceeded`.
+    pub fn new(num_elements: usize) -> Result<FamStructWrapper<T>, Error> {
+        if num_elements > T::max_len() {
+            return Err(Error::SizeLimitExceeded);
+        }
         let required_mem_allocator_capacity =
             FamStructWrapper::<T>::mem_allocator_len(num_elements);
 
@@ -196,7 +204,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         }
         mem_allocator[0].set_len(num_elements);
 
-        FamStructWrapper { mem_allocator }
+        Ok(FamStructWrapper { mem_allocator })
     }
 
     /// Create a new FamStructWrapper from a slice of elements.
@@ -205,15 +213,20 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     ///
     /// * `entries` - The slice of [`FamStruct::Entry`](trait.FamStruct.html#associatedtype.Entry)
     ///               entries.
-    pub fn from_entries(entries: &[T::Entry]) -> FamStructWrapper<T> {
-        let mut adapter = FamStructWrapper::<T>::new(entries.len());
+    ///
+    /// # Errors
+    ///
+    /// When the size of `entries` is greater than the max possible len, it returns
+    /// `Error::SizeLimitExceeded`.
+    pub fn from_entries(entries: &[T::Entry]) -> Result<FamStructWrapper<T>, Error> {
+        let mut adapter = FamStructWrapper::<T>::new(entries.len())?;
 
         {
             let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
             wrapper_entries.copy_from_slice(entries);
         }
 
-        adapter
+        Ok(adapter)
     }
 
     /// Create a new FamStructWrapper from the raw content represented as `Vec<T>`.
@@ -417,7 +430,10 @@ impl<T: Default + FamStruct> PartialEq for FamStructWrapper<T> {
 
 impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
     fn clone(&self) -> Self {
-        FamStructWrapper::from_entries(self.as_slice())
+        // It is safe to unwrap() for now since `self` is a valid `FamStructWrapper`, so the number
+        // of entries can't be > T::max_len(). In the next commit, unwrap() will not be needed
+        // anymore.
+        FamStructWrapper::from_entries(self.as_slice()).unwrap()
     }
 }
 
@@ -470,6 +486,8 @@ where
             where
                 V: SeqAccess<'de>,
             {
+                use serde::de::Error;
+
                 let header = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
@@ -477,7 +495,8 @@ where
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
 
-                let mut result: Self::Value = FamStructWrapper::from_entries(entries.as_slice());
+                let mut result: Self::Value = FamStructWrapper::from_entries(entries.as_slice())
+                    .map_err(|e| V::Error::custom(format!("{:?}", e)))?;
                 std::mem::replace(&mut result.mem_allocator[0], header);
                 Ok(result)
             }
@@ -638,7 +657,7 @@ mod tests {
     fn test_new() {
         let num_entries = 10;
 
-        let adapter = MockFamStructWrapper::new(num_entries);
+        let adapter = MockFamStructWrapper::new(num_entries).unwrap();
         assert_eq!(num_entries, adapter.capacity());
 
         let u32_slice = unsafe {
@@ -651,6 +670,15 @@ mod tests {
         for entry in u32_slice[1..].iter() {
             assert_eq!(*entry, 0);
         }
+
+        // It's okay to create a `FamStructWrapper` with the maximum allowed number of entries.
+        let adapter = MockFamStructWrapper::new(MockFamStruct::max_len()).unwrap();
+        assert_eq!(MockFamStruct::max_len(), adapter.capacity());
+
+        assert!(matches!(
+            MockFamStructWrapper::new(MockFamStruct::max_len() + 1),
+            Err(Error::SizeLimitExceeded)
+        ));
     }
 
     #[test]
@@ -662,7 +690,7 @@ mod tests {
             entries.push(i as u32);
         }
 
-        let adapter = MockFamStructWrapper::from_entries(entries.as_slice());
+        let adapter = MockFamStructWrapper::from_entries(entries.as_slice()).unwrap();
         let u32_slice = unsafe {
             std::slice::from_raw_parts(
                 adapter.as_fam_struct_ptr() as *const u32,
@@ -673,12 +701,23 @@ mod tests {
         for i in 0..num_entries {
             assert_eq!(adapter.as_slice()[i], entries[i]);
         }
+
+        let mut entries = Vec::new();
+        for i in 0..MockFamStruct::max_len() + 1 {
+            entries.push(i as u32);
+        }
+
+        // Can't create a `FamStructWrapper` with a number of entries > MockFamStruct::max_len().
+        assert!(matches!(
+            MockFamStructWrapper::from_entries(entries.as_slice()),
+            Err(Error::SizeLimitExceeded)
+        ));
     }
 
     #[test]
     fn test_entries_slice() {
         let num_entries = 10;
-        let mut adapter = MockFamStructWrapper::new(num_entries);
+        let mut adapter = MockFamStructWrapper::new(num_entries).unwrap();
 
         let expected_slice = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -699,7 +738,7 @@ mod tests {
 
     #[test]
     fn test_reserve() {
-        let mut adapter = MockFamStructWrapper::new(0);
+        let mut adapter = MockFamStructWrapper::new(0).unwrap();
 
         // test that the right capacity is reserved
         for pair in FAM_LEN_TO_MEM_ALLOCATOR_LEN {
@@ -722,7 +761,7 @@ mod tests {
     #[test]
     fn test_set_len() {
         let mut desired_len = 0;
-        let mut adapter = MockFamStructWrapper::new(desired_len);
+        let mut adapter = MockFamStructWrapper::new(desired_len).unwrap();
 
         // keep initial len
         assert!(adapter.set_len(desired_len).is_ok());
@@ -745,7 +784,7 @@ mod tests {
 
     #[test]
     fn test_push() {
-        let mut adapter = MockFamStructWrapper::new(0);
+        let mut adapter = MockFamStructWrapper::new(0).unwrap();
 
         for i in 0..MAX_LEN {
             assert!(adapter.push(i as u32).is_ok());
@@ -761,7 +800,7 @@ mod tests {
 
     #[test]
     fn test_retain() {
-        let mut adapter = MockFamStructWrapper::new(0);
+        let mut adapter = MockFamStructWrapper::new(0).unwrap();
 
         let mut num_retained_entries = 0;
         for i in 0..MAX_LEN {
@@ -785,9 +824,9 @@ mod tests {
 
     #[test]
     fn test_partial_eq() {
-        let mut wrapper_1 = MockFamStructWrapper::new(0);
-        let mut wrapper_2 = MockFamStructWrapper::new(0);
-        let mut wrapper_3 = MockFamStructWrapper::new(0);
+        let mut wrapper_1 = MockFamStructWrapper::new(0).unwrap();
+        let mut wrapper_2 = MockFamStructWrapper::new(0).unwrap();
+        let mut wrapper_3 = MockFamStructWrapper::new(0).unwrap();
 
         for i in 0..MAX_LEN {
             assert!(wrapper_1.push(i as u32).is_ok());
@@ -801,7 +840,7 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let mut adapter = MockFamStructWrapper::new(0);
+        let mut adapter = MockFamStructWrapper::new(0).unwrap();
 
         for i in 0..MAX_LEN {
             assert!(adapter.push(i as u32).is_ok());
@@ -881,5 +920,22 @@ mod tests {
 
         let bad_data_ser = r#"{"foo": "bar"}"#;
         assert!(serde_json::from_str::<MessageFamStructWrapper>(bad_data_ser).is_err());
+
+        #[repr(C)]
+        #[derive(Default)]
+        #[cfg_attr(feature = "with-serde", derive(Deserialize, Serialize))]
+        struct Message2 {
+            pub len: u32,
+            pub padding: u32,
+            pub value: u32,
+            #[cfg_attr(feature = "with-serde", serde(skip))]
+            pub entries: __IncompleteArrayField<u32>,
+        }
+
+        // Maximum number of entries = 1, so the deserialization should fail because of this reason.
+        generate_fam_struct_impl!(Message2, u32, entries, u32, len, 1);
+
+        type Message2FamStructWrapper = FamStructWrapper<Message2>;
+        assert!(serde_json::from_str::<Message2FamStructWrapper>(data_ser.as_str()).is_err());
     }
 }
