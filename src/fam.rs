@@ -422,9 +422,9 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     }
 }
 
-impl<T: Default + FamStruct> PartialEq for FamStructWrapper<T> {
+impl<T: Default + FamStruct + PartialEq> PartialEq for FamStructWrapper<T> {
     fn eq(&self, other: &FamStructWrapper<T>) -> bool {
-        self.as_slice() == other.as_slice()
+        self.as_fam_struct_ref() == other.as_fam_struct_ref() && self.as_slice() == other.as_slice()
     }
 }
 
@@ -570,7 +570,7 @@ mod tests {
     const MAX_LEN: usize = 100;
 
     #[repr(C)]
-    #[derive(Default)]
+    #[derive(Default, PartialEq)]
     pub struct __IncompleteArrayField<T>(::std::marker::PhantomData<T>, [T; 0]);
     impl<T> __IncompleteArrayField<T> {
         #[inline]
@@ -616,7 +616,7 @@ mod tests {
     }
 
     #[repr(C)]
-    #[derive(Default)]
+    #[derive(Default, PartialEq)]
     struct MockFamStruct {
         pub len: u32,
         pub padding: u32,
@@ -875,7 +875,7 @@ mod tests {
         let data = vec![
             MockFamStruct {
                 len: 2,
-                padding: 0,
+                padding: 5,
                 entries: __IncompleteArrayField::new(),
             },
             MockFamStruct {
@@ -885,22 +885,23 @@ mod tests {
             },
         ];
 
-        let wrapper = unsafe { MockFamStructWrapper::from_raw(data) };
+        let mut wrapper = unsafe { MockFamStructWrapper::from_raw(data) };
         {
             let payload = wrapper.as_slice();
             assert_eq!(payload[0], 0xA5);
             assert_eq!(payload[1], 0x1e);
         }
-
+        assert_eq!(wrapper.as_mut_fam_struct().padding, 5);
         let data = wrapper.into_raw();
         assert_eq!(data[0].len, 2);
+        assert_eq!(data[0].padding, 5);
     }
 
     #[cfg(feature = "with-serde")]
     #[test]
     fn test_ser_deser() {
         #[repr(C)]
-        #[derive(Default)]
+        #[derive(Default, PartialEq)]
         #[cfg_attr(feature = "with-serde", derive(Deserialize, Serialize))]
         struct Message {
             pub len: u32,
@@ -962,7 +963,7 @@ mod tests {
 
     #[test]
     fn test_clone_multiple_fields() {
-        #[derive(Default)]
+        #[derive(Default, PartialEq)]
         #[repr(C)]
         struct Foo {
             index: u32,
@@ -1005,21 +1006,24 @@ mod tests {
         );
         assert!(foo == foo2);
 
-        // Changing a field other than the entries array and the length field will still result in
-        // `foo` being equal to `foo2` since the ``PartialEq` is comparing only the slices.
         foo.as_mut_fam_struct().index = 3;
-        assert!(foo == foo2);
+        assert!(foo != foo2);
+
+        foo.as_mut_fam_struct().length = 7;
+        assert!(foo != foo2);
 
         foo.push(1).unwrap();
-        assert_eq!(foo.as_mut_fam_struct().length, 6);
+        assert_eq!(foo.as_mut_fam_struct().length, 8);
         assert!(foo != foo2);
 
         let mut foo2 = foo.clone();
+        assert!(foo == foo2);
+
         // Dropping the original variable should not affect its clone.
         drop(foo);
         assert_eq!(foo2.as_mut_fam_struct().index, 3);
-        assert_eq!(foo2.as_mut_fam_struct().length, 6);
+        assert_eq!(foo2.as_mut_fam_struct().length, 8);
         assert_eq!(foo2.as_mut_fam_struct().flags, 2);
-        assert_eq!(foo2.as_slice(), [0, 0, 0, 3, 14, 1]);
+        assert_eq!(foo2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
     }
 }
