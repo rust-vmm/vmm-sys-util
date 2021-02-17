@@ -430,10 +430,31 @@ impl<T: Default + FamStruct> PartialEq for FamStructWrapper<T> {
 
 impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
     fn clone(&self) -> Self {
-        // It is safe to unwrap() for now since `self` is a valid `FamStructWrapper`, so the number
-        // of entries can't be > T::max_len(). In the next commit, unwrap() will not be needed
-        // anymore.
-        FamStructWrapper::from_entries(self.as_slice()).unwrap()
+        // The number of entries (self.as_slice().len()) can't be > T::max_len() since `self` is a
+        // valid `FamStructWrapper`.
+        let required_mem_allocator_capacity =
+            FamStructWrapper::<T>::mem_allocator_len(self.as_slice().len());
+
+        let mut mem_allocator = Vec::with_capacity(required_mem_allocator_capacity);
+
+        // This is safe as long as the requirements for the `FamStruct` trait to be safe are met
+        // (the implementing type and the entries elements are POD, therefore `Copy`, so memory
+        // safety can't be violated by the ownership of `fam_struct`). It is also safe because we're
+        // trying to read a T from a `&T` that is pointing to a properly initialized and aligned T.
+        unsafe {
+            let fam_struct: T = std::ptr::read(self.as_fam_struct_ref());
+            mem_allocator.push(fam_struct);
+        }
+        for _ in 1..required_mem_allocator_capacity {
+            mem_allocator.push(unsafe { mem::zeroed() })
+        }
+
+        let mut adapter = FamStructWrapper { mem_allocator };
+        {
+            let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
+            wrapper_entries.copy_from_slice(self.as_slice());
+        }
+        adapter
     }
 }
 
@@ -937,5 +958,68 @@ mod tests {
 
         type Message2FamStructWrapper = FamStructWrapper<Message2>;
         assert!(serde_json::from_str::<Message2FamStructWrapper>(data_ser.as_str()).is_err());
+    }
+
+    #[test]
+    fn test_clone_multiple_fields() {
+        #[derive(Default)]
+        #[repr(C)]
+        struct Foo {
+            index: u32,
+            length: u16,
+            flags: u32,
+            entries: __IncompleteArrayField<u32>,
+        }
+
+        generate_fam_struct_impl!(Foo, u32, entries, u16, length, 100);
+
+        type FooFamStructWrapper = FamStructWrapper<Foo>;
+
+        let mut foo = FooFamStructWrapper::new(0).unwrap();
+        foo.as_mut_fam_struct().index = 1;
+        foo.as_mut_fam_struct().flags = 2;
+        foo.as_mut_fam_struct().length = 3;
+        foo.push(3).unwrap();
+        foo.push(14).unwrap();
+        assert_eq!(foo.as_slice().len(), 3 + 2);
+        assert_eq!(foo.as_slice()[3 + 0], 3);
+        assert_eq!(foo.as_slice()[3 + 1], 14);
+
+        let mut foo2 = foo.clone();
+        assert_eq!(
+            foo.as_mut_fam_struct().index,
+            foo2.as_mut_fam_struct().index
+        );
+        assert_eq!(
+            foo.as_mut_fam_struct().length,
+            foo2.as_mut_fam_struct().length
+        );
+        assert_eq!(
+            foo.as_mut_fam_struct().flags,
+            foo2.as_mut_fam_struct().flags
+        );
+        assert_eq!(foo.as_slice(), foo2.as_slice());
+        assert_eq!(
+            foo2.as_slice().len(),
+            foo2.as_mut_fam_struct().length as usize
+        );
+        assert!(foo == foo2);
+
+        // Changing a field other than the entries array and the length field will still result in
+        // `foo` being equal to `foo2` since the ``PartialEq` is comparing only the slices.
+        foo.as_mut_fam_struct().index = 3;
+        assert!(foo == foo2);
+
+        foo.push(1).unwrap();
+        assert_eq!(foo.as_mut_fam_struct().length, 6);
+        assert!(foo != foo2);
+
+        let mut foo2 = foo.clone();
+        // Dropping the original variable should not affect its clone.
+        drop(foo);
+        assert_eq!(foo2.as_mut_fam_struct().index, 3);
+        assert_eq!(foo2.as_mut_fam_struct().length, 6);
+        assert_eq!(foo2.as_mut_fam_struct().flags, 2);
+        assert_eq!(foo2.as_slice(), [0, 0, 0, 3, 14, 1]);
     }
 }
