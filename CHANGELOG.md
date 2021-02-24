@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## v0.8.0
 
 * Added set_check_for_hangup() to PollContext.
 * Added writable()/has_error()/raw_events() to PollEvent.
@@ -13,6 +13,12 @@
   instead of using the current cursor.
 * Removed `max_events` from `Epoll::wait` which removes possible undefined 
   behavior.
+* [[#104](https://github.com/rust-vmm/vmm-sys-util/issues/104)]: Fixed FAM
+  struct `PartialEq` implementation.
+* [[#85](https://github.com/rust-vmm/vmm-sys-util/issues/85)]: Fixed FAM struct
+  `Clone` implementation.
+* [[#99](https://github.com/rust-vmm/vmm-sys-util/issues/99)]: Validate the
+  maximum capacity when initializing FAM Struct.
 
 # v0.7.0
 
