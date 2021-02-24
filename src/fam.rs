@@ -518,7 +518,7 @@ where
 
                 let mut result: Self::Value = FamStructWrapper::from_entries(entries.as_slice())
                     .map_err(|e| V::Error::custom(format!("{:?}", e)))?;
-                std::mem::replace(&mut result.mem_allocator[0], header);
+                result.mem_allocator[0] = header;
                 Ok(result)
             }
         }
