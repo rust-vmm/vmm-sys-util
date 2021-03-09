@@ -17,6 +17,8 @@ use crate::errno::{Error, Result};
 use libc::{
     c_long, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
 };
+use std::os::raw::c_int;
+use crate::syscall::SyscallReturnCode;
 
 // Each of the following macros performs the same function as their C counterparts. They are each
 // macros because they are used to size statically allocated arrays.
@@ -203,14 +205,15 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
     let mut msg = new_msghdr(iovecs);
 
     if !in_fds.is_empty() {
+        // MSG control len is size_of(cmsghdr) + size_of(RawFd) * in_fds.len().
         msg.msg_control = cmsg_buffer.as_mut_ptr() as *mut c_void;
         set_msg_controllen(&mut msg, cmsg_capacity);
     }
 
     // Safe because the msghdr was properly constructed from valid (or null) pointers of the
     // indicated length and we check the return value.
+    // TODO: Should we handle MSG_TRUNC in a specific way?
     let total_read = unsafe { recvmsg(fd, &mut msg, 0) };
-
     if total_read == -1 {
         return Err(Error::last());
     }
@@ -219,29 +222,72 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
         return Ok((0, 0));
     }
 
+    // Reference to a memory area with a CmsgBuffer, which contains a `cmsghdr` struct followed
+    // by a sequence of `in_fds.len()` count RawFds.
     let mut cmsg_ptr = msg.msg_control as *mut cmsghdr;
-    let mut in_fds_count = 0;
-    while !cmsg_ptr.is_null() {
-        // Safe because we checked that cmsg_ptr was non-null, and the loop is constructed such that
-        // that only happens when there is at least sizeof(cmsghdr) space after the pointer to read.
-        let cmsg = unsafe { (cmsg_ptr as *mut cmsghdr).read_unaligned() };
+    let mut copied_fds_count = 0;
+    // If the control data was truncated, then this might be a sign of incorrect communication
+    // protocol.
+    let mut teardown_control_data = msg.msg_flags & libc::MSG_CTRUNC != 0;
 
+    while !cmsg_ptr.is_null() {
+        // Safe because we checked that cmsg_ptr was non-null, and the loop is constructed such
+        // that it only happens when there is at least sizeof(cmsghdr) space after the pointer to
+        // read.
+        let cmsg = unsafe { (cmsg_ptr as *mut cmsghdr).read_unaligned() };
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fd_count = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
-            unsafe {
-                copy_nonoverlapping(
-                    CMSG_DATA(cmsg_ptr),
-                    in_fds[in_fds_count..(in_fds_count + fd_count)].as_mut_ptr(),
-                    fd_count,
-                );
+            let fds_count = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
+            // The sender can transmit more data than we can buffer. If a message is too long to
+            // fit in the supplied buffer, excess bytes may be discarded depending on the type of
+            // socket the message is received from.
+            let fds_to_be_copied_count = std::cmp::min(in_fds.len() - copied_fds_count, fds_count);
+            teardown_control_data |= fds_count > fds_to_be_copied_count;
+            if teardown_control_data {
+                // Allocating space for cmesg buffer might provide extra space for fds, due to
+                // alignment. If these fds can not be stored in `in_fds` buffer, then all the control
+                // data must be dropped to insufficient buffer space for returning them to outer
+                // scope. This might be a sign of incorrect protocol communication.
+                for fd_offset in 0..fds_count {
+                    let raw_fds_ptr = CMSG_DATA(cmsg_ptr);
+                    // The cmsg_ptr is valid here because is checked at the beginning of the
+                    // loop and it is assured to have `fds_count` fds available.
+                    unsafe {
+                        let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset))
+                            as c_int;
+                        libc::close(raw_fd)
+                    };
+                }
+            } else {
+                // Safe because `cmsg_ptr` is checked against null and we copy from `cmesg_buffer` to
+                // `in_fds` according to their current capacity.
+                unsafe {
+                    copy_nonoverlapping(
+                        CMSG_DATA(cmsg_ptr),
+                        in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
+                            .as_mut_ptr(),
+                        fds_to_be_copied_count,
+                    );
+                }
+
+                copied_fds_count += fds_to_be_copied_count;
             }
-            in_fds_count += fd_count;
+        }
+
+        // Remove the previously copied fds.
+        if teardown_control_data {
+            for fd_idx in 0..copied_fds_count {
+                // This is safe because we close only the previously copied fds. We do not care
+                // about close return code.
+                unsafe { libc::close(in_fds[fd_idx]) };
+            }
+
+            return Err(Error::new(libc::ENOBUFS));
         }
 
         cmsg_ptr = get_next_cmsg(&msg, &cmsg, cmsg_ptr);
     }
 
-    Ok((total_read as usize, in_fds_count))
+    Ok((total_read as usize, copied_fds_count))
 }
 
 /// Trait for file descriptors can send and receive socket control messages via `sendmsg` and
@@ -530,5 +576,74 @@ mod tests {
             .expect("failed to write to sent fd");
 
         assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+    }
+
+    #[test]
+    // Exercise the code paths that activate the issue of receiving the all the ancillary data,
+    // but missing to provide enough buffer space to store it.
+    fn send_more_recv_less1() {
+        let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
+
+        let evt1 = EventFd::new(0).expect("failed to create eventfd");
+        let evt2 = EventFd::new(0).expect("failed to create eventfd");
+        let evt3 = EventFd::new(0).expect("failed to create eventfd");
+        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let write_count = s1
+            .send_with_fds(
+                &[[237].as_ref()],
+                &[
+                    evt1.as_raw_fd(),
+                    evt2.as_raw_fd(),
+                    evt3.as_raw_fd(),
+                    evt4.as_raw_fd(),
+                ],
+            )
+            .expect("failed to send fd");
+
+        assert_eq!(write_count, 1);
+
+        let mut files = [0; 2];
+        let mut buf = [0u8];
+        let mut iovecs = [iovec {
+            iov_base: buf.as_mut_ptr() as *mut c_void,
+            iov_len: buf.len(),
+        }];
+        assert!(s2
+            .recv_with_fds(&mut iovecs[..], &mut files)
+            .is_err());
+    }
+
+    // Exercise the code paths that activate the issue of receiving part of the sent ancillary
+    // data due to insufficient buffer space, activating `msg_flags` `MSG_CTRUNC` flag.
+    #[test]
+    fn send_more_recv_less2() {
+        let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
+
+        let evt1 = EventFd::new(0).expect("failed to create eventfd");
+        let evt2 = EventFd::new(0).expect("failed to create eventfd");
+        let evt3 = EventFd::new(0).expect("failed to create eventfd");
+        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let write_count = s1
+            .send_with_fds(
+                &[[237].as_ref()],
+                &[
+                    evt1.as_raw_fd(),
+                    evt2.as_raw_fd(),
+                    evt3.as_raw_fd(),
+                    evt4.as_raw_fd(),
+                ],
+            )
+            .expect("failed to send fd");
+
+        assert_eq!(write_count, 1);
+
+        let mut files = [0; 1];
+        let mut buf = [0u8];
+        let mut iovecs = [iovec {
+            iov_base: buf.as_mut_ptr() as *mut c_void,
+            iov_len: buf.len(),
+        }];
+        assert!(s2
+            .recv_with_fds(&mut iovecs[..], &mut files).is_err());
     }
 }
