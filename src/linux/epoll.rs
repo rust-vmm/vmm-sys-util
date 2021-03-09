@@ -204,6 +204,7 @@ pub struct Epoll {
 impl Epoll {
     /// Create a new epoll file descriptor.
     pub fn new() -> io::Result<Self> {
+        // Safe because the return code is transformed by `into_result` in a `Result`.
         let epoll_fd = SyscallReturnCode(unsafe { epoll_create1(EPOLL_CLOEXEC) }).into_result()?;
         Ok(Epoll { epoll_fd })
     }
