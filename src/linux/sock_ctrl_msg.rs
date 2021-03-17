@@ -18,7 +18,6 @@ use libc::{
     c_long, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
 };
 use std::os::raw::c_int;
-use crate::syscall::SyscallReturnCode;
 
 // Each of the following macros performs the same function as their C counterparts. They are each
 // macros because they are used to size statically allocated arrays.
@@ -227,7 +226,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
     let mut cmsg_ptr = msg.msg_control as *mut cmsghdr;
     let mut copied_fds_count = 0;
     // If the control data was truncated, then this might be a sign of incorrect communication
-    // protocol.
+    // protocol. If MSG_CTRUNC was set we must close the fds from the control data.
     let mut teardown_control_data = msg.msg_flags & libc::MSG_CTRUNC != 0;
 
     while !cmsg_ptr.is_null() {
@@ -252,8 +251,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
                     // The cmsg_ptr is valid here because is checked at the beginning of the
                     // loop and it is assured to have `fds_count` fds available.
                     unsafe {
-                        let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset))
-                            as c_int;
+                        let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset)) as c_int;
                         libc::close(raw_fd)
                     };
                 }
@@ -275,10 +273,10 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
 
         // Remove the previously copied fds.
         if teardown_control_data {
-            for fd_idx in 0..copied_fds_count {
+            for fd in in_fds.iter().take(copied_fds_count) {
                 // This is safe because we close only the previously copied fds. We do not care
-                // about close return code.
-                unsafe { libc::close(in_fds[fd_idx]) };
+                // about `close` return code.
+                unsafe { libc::close(*fd) };
             }
 
             return Err(Error::new(libc::ENOBUFS));
@@ -608,9 +606,7 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        assert!(s2
-            .recv_with_fds(&mut iovecs[..], &mut files)
-            .is_err());
+        assert!(s2.recv_with_fds(&mut iovecs[..], &mut files).is_err());
     }
 
     // Exercise the code paths that activate the issue of receiving part of the sent ancillary
@@ -643,7 +639,6 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        assert!(s2
-            .recv_with_fds(&mut iovecs[..], &mut files).is_err());
+        assert!(s2.recv_with_fds(&mut iovecs[..], &mut files).is_err());
     }
 }

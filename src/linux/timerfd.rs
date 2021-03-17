@@ -200,6 +200,11 @@ impl AsRawFd for TimerFd {
 }
 
 impl FromRawFd for TimerFd {
+    /// This function is unsafe as the primitives currently returned
+    /// have the contract that they are the sole owner of the file
+    /// descriptor they are wrapping. Usage of this function could
+    /// accidentally allow violating this contract which can cause memory
+    /// unsafety in code that relies on it being true.
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
         TimerFd(File::from_raw_fd(fd))
     }
