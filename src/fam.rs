@@ -629,7 +629,7 @@ mod tests {
 
     const ENTRIES_OFFSET: usize = 2;
 
-    const FAM_LEN_TO_MEM_ALLOCATOR_LEN: &'static [(usize, usize)] = &[
+    const FAM_LEN_TO_MEM_ALLOCATOR_LEN: &[(usize, usize)] = &[
         (0, 1),
         (1, 2),
         (2, 2),
@@ -641,7 +641,7 @@ mod tests {
         (100, 51),
     ];
 
-    const MEM_ALLOCATOR_LEN_TO_FAM_LEN: &'static [(usize, usize)] = &[
+    const MEM_ALLOCATOR_LEN_TO_FAM_LEN: &[(usize, usize)] = &[
         (0, 0),
         (1, 0),
         (2, 2),
@@ -719,8 +719,8 @@ mod tests {
             )
         };
         assert_eq!(num_entries, u32_slice[0] as usize);
-        for i in 0..num_entries {
-            assert_eq!(adapter.as_slice()[i], entries[i]);
+        for (i, &value) in entries.iter().enumerate().take(num_entries) {
+            assert_eq!(adapter.as_slice()[i], value);
         }
 
         let mut entries = Vec::new();
@@ -827,7 +827,7 @@ mod tests {
         for i in 0..MAX_LEN {
             assert!(adapter.push(i as u32).is_ok());
             if i % 2 == 0 {
-                num_retained_entries = num_retained_entries + 1;
+                num_retained_entries += 1;
             }
         }
 
@@ -976,54 +976,54 @@ mod tests {
 
         type FooFamStructWrapper = FamStructWrapper<Foo>;
 
-        let mut foo = FooFamStructWrapper::new(0).unwrap();
-        foo.as_mut_fam_struct().index = 1;
-        foo.as_mut_fam_struct().flags = 2;
-        foo.as_mut_fam_struct().length = 3;
-        foo.push(3).unwrap();
-        foo.push(14).unwrap();
-        assert_eq!(foo.as_slice().len(), 3 + 2);
-        assert_eq!(foo.as_slice()[3 + 0], 3);
-        assert_eq!(foo.as_slice()[3 + 1], 14);
+        let mut wrapper = FooFamStructWrapper::new(0).unwrap();
+        wrapper.as_mut_fam_struct().index = 1;
+        wrapper.as_mut_fam_struct().flags = 2;
+        wrapper.as_mut_fam_struct().length = 3;
+        wrapper.push(3).unwrap();
+        wrapper.push(14).unwrap();
+        assert_eq!(wrapper.as_slice().len(), 3 + 2);
+        assert_eq!(wrapper.as_slice()[3], 3);
+        assert_eq!(wrapper.as_slice()[3 + 1], 14);
 
-        let mut foo2 = foo.clone();
+        let mut wrapper2 = wrapper.clone();
         assert_eq!(
-            foo.as_mut_fam_struct().index,
-            foo2.as_mut_fam_struct().index
+            wrapper.as_mut_fam_struct().index,
+            wrapper2.as_mut_fam_struct().index
         );
         assert_eq!(
-            foo.as_mut_fam_struct().length,
-            foo2.as_mut_fam_struct().length
+            wrapper.as_mut_fam_struct().length,
+            wrapper2.as_mut_fam_struct().length
         );
         assert_eq!(
-            foo.as_mut_fam_struct().flags,
-            foo2.as_mut_fam_struct().flags
+            wrapper.as_mut_fam_struct().flags,
+            wrapper2.as_mut_fam_struct().flags
         );
-        assert_eq!(foo.as_slice(), foo2.as_slice());
+        assert_eq!(wrapper.as_slice(), wrapper2.as_slice());
         assert_eq!(
-            foo2.as_slice().len(),
-            foo2.as_mut_fam_struct().length as usize
+            wrapper2.as_slice().len(),
+            wrapper2.as_mut_fam_struct().length as usize
         );
-        assert!(foo == foo2);
+        assert!(wrapper == wrapper2);
 
-        foo.as_mut_fam_struct().index = 3;
-        assert!(foo != foo2);
+        wrapper.as_mut_fam_struct().index = 3;
+        assert!(wrapper != wrapper2);
 
-        foo.as_mut_fam_struct().length = 7;
-        assert!(foo != foo2);
+        wrapper.as_mut_fam_struct().length = 7;
+        assert!(wrapper != wrapper2);
 
-        foo.push(1).unwrap();
-        assert_eq!(foo.as_mut_fam_struct().length, 8);
-        assert!(foo != foo2);
+        wrapper.push(1).unwrap();
+        assert_eq!(wrapper.as_mut_fam_struct().length, 8);
+        assert!(wrapper != wrapper2);
 
-        let mut foo2 = foo.clone();
-        assert!(foo == foo2);
+        let mut wrapper2 = wrapper.clone();
+        assert!(wrapper == wrapper2);
 
         // Dropping the original variable should not affect its clone.
-        drop(foo);
-        assert_eq!(foo2.as_mut_fam_struct().index, 3);
-        assert_eq!(foo2.as_mut_fam_struct().length, 8);
-        assert_eq!(foo2.as_mut_fam_struct().flags, 2);
-        assert_eq!(foo2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
+        drop(wrapper);
+        assert_eq!(wrapper2.as_mut_fam_struct().index, 3);
+        assert_eq!(wrapper2.as_mut_fam_struct().length, 8);
+        assert_eq!(wrapper2.as_mut_fam_struct().flags, 2);
+        assert_eq!(wrapper2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
     }
 }

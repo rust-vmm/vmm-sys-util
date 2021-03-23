@@ -167,12 +167,12 @@ mod tests {
         // Write buffer of non-zero bytes to offset 1234.
         let orig_data = [NON_ZERO_VALUE; BUF_SIZE];
         f.seek(SeekFrom::Start(1234)).unwrap();
-        f.write(&orig_data).unwrap();
+        f.write_all(&orig_data).unwrap();
 
         // Read back the data plus some overlap on each side.
         let mut readback = [0u8; 16384];
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
         // Bytes before the write should still be 0.
         for read in &readback[0..1234] {
             assert_eq!(*read, 0);
@@ -194,7 +194,7 @@ mod tests {
 
         // Read back the data and verify that it is now zero.
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
         // Bytes before the write should still be 0.
         for read in &readback[0..1234] {
             assert_eq!(*read, 0);
@@ -229,7 +229,7 @@ mod tests {
         // size of the file.
         let orig_data = [NON_ZERO_VALUE; SIZE];
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.write(&orig_data).unwrap();
+        f.write_all(&orig_data).unwrap();
         assert_eq!(f.metadata().unwrap().len(), SIZE as u64);
 
         // Overwrite some of the data with zeroes.
@@ -241,7 +241,7 @@ mod tests {
         // Read back the data and verify that it is now zero.
         let mut readback = [0u8; SIZE];
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
         // Verify that `write_all_zeroes()` zeroed the intended region.
         for read in &readback[0..0x1_0001] {
             assert_eq!(*read, 0);
@@ -254,7 +254,7 @@ mod tests {
         // Now let's zero a certain region by using `write_all_zeroes_at()`.
         f.write_all_zeroes_at(0x1_8001, 0x200).unwrap();
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
 
         // Original data should still exist before the zeroed region.
         for read in &readback[0x1_0001..0x1_8001] {
@@ -282,7 +282,7 @@ mod tests {
         // size of the file.
         let orig_data = [NON_ZERO_VALUE; SIZE];
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.write(&orig_data).unwrap();
+        f.write_all(&orig_data).unwrap();
         assert_eq!(f.metadata().unwrap().len(), SIZE as u64);
 
         // Punch a hole at offset 0x10001.
@@ -292,7 +292,7 @@ mod tests {
         // Read back the data.
         let mut readback = [0u8; SIZE];
         f.seek(SeekFrom::Start(0)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
         // Original data should still exist before the hole.
         for read in &readback[0..0x1_0001] {
             assert_eq!(*read, NON_ZERO_VALUE);
@@ -315,7 +315,7 @@ mod tests {
 
         let mut readback = [0u8; 0x400];
         f.seek(SeekFrom::Start(SIZE as u64 - 0x400)).unwrap();
-        f.read(&mut readback).unwrap();
+        f.read_exact(&mut readback).unwrap();
         // Verify that `punch_hole()` zeroed the intended region.
         for read in &readback[0..0x400] {
             assert_eq!(*read, 0);

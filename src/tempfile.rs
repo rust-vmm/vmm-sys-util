@@ -167,11 +167,7 @@ mod tests {
 
         // Check filename has only ascii letters / numbers
         for n in path.file_name().unwrap().to_string_lossy().bytes() {
-            assert!(
-                between('0' as u8, '9' as u8, n)
-                    || between('a' as u8, 'z' as u8, n)
-                    || between('A' as u8, 'Z' as u8, n)
-            );
+            assert!(between(b'0', b'9', n) || between(b'a', b'z', n) || between(b'A', b'Z', n));
         }
 
         // Check we can write to the file
