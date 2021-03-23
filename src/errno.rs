@@ -132,7 +132,6 @@ pub fn errno_result<T>() -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libc;
     use std::env::temp_dir;
     use std::error::Error as _;
     use std::fs::OpenOptions;
