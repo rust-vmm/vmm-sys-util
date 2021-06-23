@@ -794,7 +794,7 @@ mod tests {
         // check that the len has been increased and zero-initialized elements have been added
         assert_eq!(adapter.len(), desired_len);
         for element in adapter.as_slice() {
-            assert_eq!(*element, 0 as u32);
+            assert_eq!(*element, 0_u32);
         }
 
         // decrease len
