@@ -198,7 +198,11 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
     }
 }
 
-fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<(usize, usize)> {
+unsafe fn raw_recvmsg(
+    fd: RawFd,
+    iovecs: &mut [iovec],
+    in_fds: &mut [RawFd],
+) -> Result<(usize, usize)> {
     let cmsg_capacity = CMSG_SPACE!(size_of::<RawFd>() * in_fds.len());
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
     let mut msg = new_msghdr(iovecs);
@@ -212,7 +216,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
     // Safe because the msghdr was properly constructed from valid (or null) pointers of the
     // indicated length and we check the return value.
     // TODO: Should we handle MSG_TRUNC in a specific way?
-    let total_read = unsafe { recvmsg(fd, &mut msg, 0) };
+    let total_read = recvmsg(fd, &mut msg, 0);
     if total_read == -1 {
         return Err(Error::last());
     }
@@ -233,7 +237,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
         // Safe because we checked that cmsg_ptr was non-null, and the loop is constructed such
         // that it only happens when there is at least sizeof(cmsghdr) space after the pointer to
         // read.
-        let cmsg = unsafe { (cmsg_ptr as *mut cmsghdr).read_unaligned() };
+        let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
             let fds_count = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
             // The sender can transmit more data than we can buffer. If a message is too long to
@@ -250,22 +254,18 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
                     let raw_fds_ptr = CMSG_DATA(cmsg_ptr);
                     // The cmsg_ptr is valid here because is checked at the beginning of the
                     // loop and it is assured to have `fds_count` fds available.
-                    unsafe {
-                        let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset)) as c_int;
-                        libc::close(raw_fd)
-                    };
+                    let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset)) as c_int;
+                    libc::close(raw_fd);
                 }
             } else {
                 // Safe because `cmsg_ptr` is checked against null and we copy from `cmesg_buffer` to
                 // `in_fds` according to their current capacity.
-                unsafe {
-                    copy_nonoverlapping(
-                        CMSG_DATA(cmsg_ptr),
-                        in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
-                            .as_mut_ptr(),
-                        fds_to_be_copied_count,
-                    );
-                }
+                copy_nonoverlapping(
+                    CMSG_DATA(cmsg_ptr),
+                    in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
+                        .as_mut_ptr(),
+                    fds_to_be_copied_count,
+                );
 
                 copied_fds_count += fds_to_be_copied_count;
             }
@@ -276,7 +276,7 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
             for fd in in_fds.iter().take(copied_fds_count) {
                 // This is safe because we close only the previously copied fds. We do not care
                 // about `close` return code.
-                unsafe { libc::close(*fd) };
+                libc::close(*fd);
             }
 
             return Err(Error::new(libc::ENOBUFS));
@@ -319,9 +319,10 @@ fn raw_recvmsg(fd: RawFd, iovecs: &mut [iovec], in_fds: &mut [RawFd]) -> Result<
 ///     iov_base: buf.as_mut_ptr() as *mut c_void,
 ///     iov_len: buf.len(),
 /// }];
-/// let (read_count, file_count) = s2
-///     .recv_with_fds(&mut iovecs[..], &mut files)
-///     .expect("failed to recv fd");
+/// let (read_count, file_count) = unsafe {
+///     s2.recv_with_fds(&mut iovecs[..], &mut files)
+///         .expect("failed to recv fd")
+/// };
 ///
 /// let mut file = unsafe { File::from_raw_fd(files[0]) };
 /// file.write(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
@@ -370,7 +371,9 @@ pub trait ScmSocket {
             iov_len: buf.len(),
         }];
 
-        let (read_count, fd_count) = self.recv_with_fds(&mut iovecs[..], &mut fd)?;
+        // Safe because we have mutably borrowed buf and it's safe to write arbitrary data
+        // to a slice.
+        let (read_count, fd_count) = unsafe { self.recv_with_fds(&mut iovecs[..], &mut fd)? };
         let file = if fd_count == 0 {
             None
         } else {
@@ -394,7 +397,16 @@ pub trait ScmSocket {
     ///           returned tuple. The caller owns these file descriptors, but they will not be
     ///           closed on drop like a `File`-like type would be. It is recommended that each valid
     ///           file descriptor gets wrapped in a drop type that closes it after this returns.
-    fn recv_with_fds(&self, iovecs: &mut [iovec], fds: &mut [RawFd]) -> Result<(usize, usize)> {
+    ///
+    /// # Safety
+    ///
+    /// It is the callers responsibility to ensure it is safe for arbitrary data to be
+    /// written to the iovec pointers.
+    unsafe fn recv_with_fds(
+        &self,
+        iovecs: &mut [iovec],
+        fds: &mut [RawFd],
+    ) -> Result<(usize, usize)> {
         raw_recvmsg(self.socket_fd(), iovecs, fds)
     }
 }
@@ -503,9 +515,10 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        let (read_count, file_count) = s2
-            .recv_with_fds(&mut iovecs[..], &mut files)
-            .expect("failed to recv data");
+        let (read_count, file_count) = unsafe {
+            s2.recv_with_fds(&mut iovecs[..], &mut files)
+                .expect("failed to recv data")
+        };
 
         assert_eq!(read_count, 6);
         assert_eq!(file_count, 0);
@@ -556,9 +569,10 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        let (read_count, file_count) = s2
-            .recv_with_fds(&mut iovecs[..], &mut files)
-            .expect("failed to recv fd");
+        let (read_count, file_count) = unsafe {
+            s2.recv_with_fds(&mut iovecs[..], &mut files)
+                .expect("failed to recv fd")
+        };
 
         assert_eq!(read_count, 1);
         assert_eq!(buf[0], 237);
@@ -606,7 +620,7 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        assert!(s2.recv_with_fds(&mut iovecs[..], &mut files).is_err());
+        assert!(unsafe { s2.recv_with_fds(&mut iovecs[..], &mut files).is_err() });
     }
 
     // Exercise the code paths that activate the issue of receiving part of the sent ancillary
@@ -639,6 +653,6 @@ mod tests {
             iov_base: buf.as_mut_ptr() as *mut c_void,
             iov_len: buf.len(),
         }];
-        assert!(s2.recv_with_fds(&mut iovecs[..], &mut files).is_err());
+        assert!(unsafe { s2.recv_with_fds(&mut iovecs[..], &mut files).is_err() });
     }
 }
