@@ -146,7 +146,7 @@ mod tests {
         let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
-        assert!(path.starts_with("/tmp/"));
+        assert!(path.starts_with(temp_dir()));
     }
 
     #[test]
