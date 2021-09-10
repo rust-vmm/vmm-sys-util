@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.0
+
+### Changed
+* Fixed safety for sock_ctrl_msg::raw_recvmsg() and enhanced documentation
+* Fixed sock_cmsg: ensured copy_nonoverlapping safety
+* [[#135](https://github.com/rust-vmm/vmm-sys-util/pull/135)]: sock_ctrl_msg:
+   mark recv_with_fds as unsafe
+
+
 ## v0.8.0
 
 * Added set_check_for_hangup() to PollContext.
