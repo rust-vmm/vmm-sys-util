@@ -296,7 +296,7 @@ unsafe fn raw_recvmsg(
 /// ```
 /// # extern crate libc;
 /// extern crate vmm_sys_util;
-/// use vmm_sys_util::sock_ctrl_msg::{ScmSocket};
+/// use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 /// # use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
 /// # use std::fs::File;
 /// # use std::io::Write;

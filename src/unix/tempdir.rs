@@ -109,7 +109,6 @@ impl TempDir {
     /// # use vmm_sys_util::tempdir::TempDir;
     /// let temp_dir = TempDir::new_with_prefix("/tmp/testdir").unwrap();
     /// temp_dir.remove().unwrap();
-    ///
     pub fn remove(&self) -> Result<()> {
         fs::remove_dir_all(&self.path).map_err(Error::from)
     }
@@ -124,7 +123,6 @@ impl TempDir {
     /// # use vmm_sys_util::tempdir::TempDir;
     /// let temp_dir = TempDir::new_with_prefix("/tmp/testdir").unwrap();
     /// assert!(temp_dir.as_path().exists());
-    ///
     pub fn as_path(&self) -> &Path {
         self.path.as_ref()
     }

@@ -438,7 +438,8 @@ impl<T: PollToken> EpollContext<T> {
     ///
     /// let evt = EventFd::new(0).unwrap();
     /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
-    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1).unwrap();
+    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1)
+    ///     .unwrap();
     /// ```
     pub fn add_fd_with_events(
         &self,
@@ -486,8 +487,10 @@ impl<T: PollToken> EpollContext<T> {
     ///
     /// let evt = EventFd::new(0).unwrap();
     /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
-    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1).unwrap();
-    /// ctx.modify(&evt, WatchingEvents::empty().set_write(), 2).unwrap();
+    /// ctx.add_fd_with_events(&evt, WatchingEvents::empty().set_read(), 1)
+    ///     .unwrap();
+    /// ctx.modify(&evt, WatchingEvents::empty().set_write(), 2)
+    ///     .unwrap();
     /// ```
     pub fn modify(&self, fd: &dyn AsRawFd, events: WatchingEvents, token: T) -> Result<()> {
         let mut evt = epoll_event {
@@ -600,8 +603,8 @@ impl<T: PollToken> EpollContext<T> {
     /// ```
     /// extern crate vmm_sys_util;
     /// # use std::time::Duration;
-    /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
     /// use vmm_sys_util::eventfd::EventFd;
+    /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
     ///
     /// let evt = EventFd::new(0).unwrap();
     /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
@@ -609,7 +612,11 @@ impl<T: PollToken> EpollContext<T> {
     ///
     /// evt.write(1).unwrap();
     /// ctx.add(&evt, 1).unwrap();
-    /// for event in ctx.wait_timeout(&events, Duration::new(100, 0)).unwrap().iter_readable() {
+    /// for event in ctx
+    ///     .wait_timeout(&events, Duration::new(100, 0))
+    ///     .unwrap()
+    ///     .iter_readable()
+    /// {
     ///     assert_eq!(event.token(), 1);
     /// }
     /// ```

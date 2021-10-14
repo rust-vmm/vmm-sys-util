@@ -223,7 +223,7 @@ type IoctlRequest = c_ulong;
 ///
 /// ```
 /// # extern crate libc;
-/// #[macro_use] extern crate vmm_sys_util;
+/// # #[macro_use] extern crate vmm_sys_util;
 /// #
 /// # use libc::{open, O_CLOEXEC, O_RDWR};
 /// # use std::fs::File;
@@ -265,7 +265,7 @@ pub unsafe fn ioctl<F: AsRawFd>(fd: &F, req: c_ulong) -> c_int {
 ///
 /// ```
 /// # extern crate libc;
-/// #[macro_use] extern crate vmm_sys_util;
+/// # #[macro_use] extern crate vmm_sys_util;
 /// # use libc::{open, O_CLOEXEC, O_RDWR};
 /// # use std::fs::File;
 /// # use std::os::raw::{c_char, c_uint, c_ulong};
