@@ -116,17 +116,14 @@ impl IoContext {
     /// let file = File::open("/dev/zero").unwrap();
     /// let ctx = IoContext::new(128).unwrap();
     /// let mut buf: [u8; 4096] = unsafe { std::mem::uninitialized() };
-    /// let iocbs = [
-    ///     &mut IoControlBlock {
-    ///        aio_fildes: file.as_raw_fd() as u32,
-    ///        aio_lio_opcode: IOCB_CMD_PREAD as u16,
-    ///        aio_buf: buf.as_mut_ptr() as u64,
-    ///        aio_nbytes: buf.len() as u64,
-    ///        ..Default::default()
-    ///    },
-    /// ];
+    /// let iocbs = [&mut IoControlBlock {
+    ///     aio_fildes: file.as_raw_fd() as u32,
+    ///     aio_lio_opcode: IOCB_CMD_PREAD as u16,
+    ///     aio_buf: buf.as_mut_ptr() as u64,
+    ///     aio_nbytes: buf.len() as u64,
+    ///     ..Default::default()
+    /// }];
     /// assert_eq!(ctx.submit(&iocbs[..]).unwrap(), 1);
-    ///
     /// ```
     pub fn submit(&self, iocbs: &[&mut IoControlBlock]) -> Result<usize> {
         let rc = unsafe {

@@ -109,7 +109,6 @@ pub enum Error {
 ///
 /// type MockFamStructWrapper = FamStructWrapper<MockFamStruct>;
 /// ```
-///
 #[allow(clippy::len_without_is_empty)]
 pub unsafe trait FamStruct {
     /// The type of the FAM entries

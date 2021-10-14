@@ -202,7 +202,9 @@ pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Res
 ///
 /// let sigset = create_sigset(&[1]).unwrap();
 ///
-/// unsafe { assert_eq!(sigismember(&sigset, 1), 1); }
+/// unsafe {
+///     assert_eq!(sigismember(&sigset, 1), 1);
+/// }
 /// ```
 pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
     // sigset will actually be initialized by sigemptyset below.
@@ -356,7 +358,9 @@ pub fn unblock_signal(num: c_int) -> SignalResult<()> {
 ///         assert_eq!(sigismember(&chkset, 1), 1);
 ///     }
 /// });
-/// unsafe { pthread_kill(killable.pthread_handle(), 1); }
+/// unsafe {
+///     pthread_kill(killable.pthread_handle(), 1);
+/// }
 /// clear_signal(1).unwrap();
 /// ```
 pub fn clear_signal(num: c_int) -> SignalResult<()> {
