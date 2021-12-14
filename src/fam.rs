@@ -142,6 +142,7 @@ pub unsafe trait FamStruct {
 /// A wrapper for [`FamStruct`](trait.FamStruct.html).
 ///
 /// It helps in treating a [`FamStruct`](trait.FamStruct.html) similarly to an actual `Vec`.
+#[derive(Debug)]
 pub struct FamStructWrapper<T: Default + FamStruct> {
     // This variable holds the FamStruct structure. We use a `Vec<T>` to make the allocation
     // large enough while still being aligned for `T`. Only the first element of `Vec<T>`

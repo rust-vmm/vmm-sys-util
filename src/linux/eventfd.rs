@@ -18,6 +18,7 @@ pub use libc::{EFD_CLOEXEC, EFD_NONBLOCK, EFD_SEMAPHORE};
 
 /// A safe wrapper around Linux
 /// [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
+#[derive(Debug)]
 pub struct EventFd {
     eventfd: File,
 }
