@@ -997,10 +997,10 @@ mod tests {
         };
 
         assert_eq!(ev.token(), 0x10);
-        assert_eq!(ev.readable(), true);
-        assert_eq!(ev.writable(), true);
-        assert_eq!(ev.hungup(), true);
-        assert_eq!(ev.has_error(), true);
+        assert!(ev.readable());
+        assert!(ev.writable());
+        assert!(ev.hungup());
+        assert!(ev.has_error());
         assert_eq!(
             ev.raw_events(),
             (EPOLLIN | EPOLLERR | EPOLLOUT | EPOLLHUP) as u32

@@ -64,6 +64,8 @@ fn set_flags(fd: RawFd, flags: c_int) -> Result<()> {
 /// Trait for file descriptors that are TTYs, according to
 /// [`isatty`](http://man7.org/linux/man-pages/man3/isatty.3.html).
 ///
+/// # Safety
+///
 /// This is marked unsafe because the implementation must ensure that the returned
 /// RawFd is a valid fd and that the lifetime of the returned fd is at least that
 /// of the trait object.
