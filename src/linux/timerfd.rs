@@ -234,7 +234,7 @@ mod tests {
     fn test_from_raw_fd() {
         let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
         let tfd = unsafe { TimerFd::from_raw_fd(ret) };
-        assert_eq!(tfd.is_armed().unwrap(), false);
+        assert!(!tfd.is_armed().unwrap());
     }
 
     #[test]
@@ -246,20 +246,20 @@ mod tests {
     #[test]
     fn test_one_shot() {
         let mut tfd = TimerFd::new().expect("failed to create timerfd");
-        assert_eq!(tfd.is_armed().unwrap(), false);
+        assert!(!tfd.is_armed().unwrap());
 
         let dur = Duration::from_millis(200);
         let now = Instant::now();
         tfd.reset(dur, None).expect("failed to arm timer");
 
-        assert_eq!(tfd.is_armed().unwrap(), true);
+        assert!(tfd.is_armed().unwrap());
 
         let count = tfd.wait().expect("unable to wait for timer");
 
         assert_eq!(count, 1);
         assert!(now.elapsed() >= dur);
         tfd.clear().expect("unable to clear the timer");
-        assert_eq!(tfd.is_armed().unwrap(), false);
+        assert!(!tfd.is_armed().unwrap());
     }
 
     #[test]
@@ -275,6 +275,6 @@ mod tests {
         let count = tfd.wait().expect("unable to wait for timer");
         assert!(count >= 5, "count = {}", count);
         tfd.clear().expect("unable to clear the timer");
-        assert_eq!(tfd.is_armed().unwrap(), false);
+        assert!(!tfd.is_armed().unwrap());
     }
 }

@@ -35,6 +35,8 @@ pub enum Error {
 
 /// Trait for accessing properties of C defined FAM structures.
 ///
+/// # Safety
+///
 /// This is unsafe due to the number of constraints that aren't checked:
 /// * the implementer should be a POD
 /// * the implementor should contain a flexible array member of elements of type `Entry`

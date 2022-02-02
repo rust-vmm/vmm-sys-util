@@ -426,6 +426,8 @@ impl ScmSocket for UnixStream {
 /// Trait for types that can be converted into an `iovec` that can be referenced by a syscall for
 /// the lifetime of this object.
 ///
+/// # Safety
+///
 /// This is marked unsafe because the implementation must ensure that the returned pointer and size
 /// is valid and that the lifetime of the returned pointer is at least that of the trait object.
 pub unsafe trait IntoIovec {
