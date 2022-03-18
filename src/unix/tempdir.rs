@@ -144,6 +144,7 @@ mod tests {
         let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
+        #[cfg(not(target_os = "macos"))]
         assert!(path.starts_with(temp_dir()));
     }
 
@@ -185,12 +186,14 @@ mod tests {
         let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
+        #[cfg(not(target_os = "macos"))]
         assert!(path.starts_with("/tmp/"));
 
         let t = TempDir::new_in(Path::new("/tmp")).unwrap();
         let path = t.as_path();
         assert!(path.exists());
         assert!(path.is_dir());
+        #[cfg(not(target_os = "macos"))]
         assert!(path.starts_with("/tmp"));
     }
 
