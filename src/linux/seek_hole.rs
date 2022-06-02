@@ -16,6 +16,9 @@ use libc::{c_int, lseek64, ENXIO};
 #[cfg(target_env = "gnu")]
 use libc::{lseek64, ENXIO, SEEK_DATA, SEEK_HOLE};
 
+#[cfg(not(target_env = "musl"))]
+use libc::{lseek64, ENXIO, SEEK_DATA, SEEK_HOLE};
+
 /// A trait for seeking to the next hole or non-hole position in a file.
 pub trait SeekHole {
     /// Seek to the first hole in a file.

@@ -202,9 +202,10 @@ pub use self::ioc::*;
 // successful build for other non-musl libraries.
 #[cfg(target_env = "musl")]
 type IoctlRequest = c_int;
-#[cfg(not(target_env = "musl"))]
+#[cfg(all(not(target_env = "musl"), not(target_os = "android")))]
 type IoctlRequest = c_ulong;
-
+#[cfg(all(not(target_env = "musl"), target_os = "android"))]
+type IoctlRequest = c_int;
 /// Run an [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html)
 /// with no arguments.
 ///
