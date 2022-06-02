@@ -8,7 +8,7 @@ use std::io;
 use std::ops::{Deref, Drop};
 use std::os::unix::io::{AsRawFd, RawFd};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 use bitflags::bitflags;
 use libc::{
     epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLERR, EPOLLET, EPOLLEXCLUSIVE, EPOLLHUP,
