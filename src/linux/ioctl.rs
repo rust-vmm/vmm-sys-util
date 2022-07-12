@@ -9,27 +9,31 @@
 //! Macros and functions for working with
 //! [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html).
 
-use std::os::raw::{c_int, c_ulong, c_void};
+use std::os::raw::{c_int, c_uint, c_ulong, c_void};
 use std::os::unix::io::AsRawFd;
 
-/// Expression that calculates an ioctl number.
-///
+// The only reason
+// [_IOC](https://elixir.bootlin.com/linux/v5.10.129/source/arch/alpha/include/uapi/asm/ioctl.h#L40)
+// is a macro in C is because C doesn't have const functions, it is always better when possible to
+// use a const function over a macro in Rust.
+/// Function to calculate icotl number. Mimic of
+/// [_IOC](https://elixir.bootlin.com/linux/v5.10.129/source/arch/alpha/include/uapi/asm/ioctl.h#L40)
 /// ```
-/// # #[macro_use] extern crate vmm_sys_util;
 /// # use std::os::raw::c_uint;
-/// use vmm_sys_util::ioctl::_IOC_NONE;
-///
+/// # use vmm_sys_util::ioctl::{ioctl_expr, _IOC_NONE};
 /// const KVMIO: c_uint = 0xAE;
-/// ioctl_expr!(_IOC_NONE, KVMIO, 0x01, 0);
+/// ioctl_expr(_IOC_NONE, KVMIO, 0x01, 0);
 /// ```
-#[macro_export]
-macro_rules! ioctl_expr {
-    ($dir:expr, $ty:expr, $nr:expr, $size:expr) => {
-        (($dir << $crate::ioctl::_IOC_DIRSHIFT)
-            | ($ty << $crate::ioctl::_IOC_TYPESHIFT)
-            | ($nr << $crate::ioctl::_IOC_NRSHIFT)
-            | ($size << $crate::ioctl::_IOC_SIZESHIFT)) as ::std::os::raw::c_ulong
-    };
+pub const fn ioctl_expr(
+    dir: c_uint,
+    ty: c_uint,
+    nr: c_uint,
+    size: c_uint,
+) -> ::std::os::raw::c_ulong {
+    (dir << crate::ioctl::_IOC_DIRSHIFT
+        | ty << crate::ioctl::_IOC_TYPESHIFT
+        | nr << crate::ioctl::_IOC_NRSHIFT
+        | size << crate::ioctl::_IOC_SIZESHIFT) as ::std::os::raw::c_ulong
 }
 
 /// Declare a function that returns an ioctl number.
@@ -48,14 +52,14 @@ macro_rules! ioctl_ioc_nr {
         #[allow(non_snake_case)]
         #[allow(clippy::cast_lossless)]
         pub fn $name() -> ::std::os::raw::c_ulong {
-            ioctl_expr!($dir, $ty, $nr, $size)
+            $crate::ioctl::ioctl_expr($dir, $ty, $nr, $size)
         }
     };
     ($name:ident, $dir:expr, $ty:expr, $nr:expr, $size:expr, $($v:ident),+) => {
         #[allow(non_snake_case)]
         #[allow(clippy::cast_lossless)]
         pub fn $name($($v: ::std::os::raw::c_uint),+) -> ::std::os::raw::c_ulong {
-            ioctl_expr!($dir, $ty, $nr, $size)
+            $crate::ioctl::ioctl_expr($dir, $ty, $nr, $size)
         }
     };
 }
