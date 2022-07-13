@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.10.0
+
+### Added
+- Added Android support by using the appropriate macro configuration when
+  exporting functionality.
+- Derive `Debug` for `FamStructWrapper` & `EventFd`.
+
+### Changed
+- The `ioctl_expr` is now a const function instead of a macro.
+
 ## v0.9.0
 
 ### Changed
