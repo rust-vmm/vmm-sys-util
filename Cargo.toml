@@ -13,12 +13,12 @@ license = "Apache-2.0 AND BSD-3-Clause"
 with-serde = ["serde", "serde_derive"]
 
 [dependencies]
-libc = ">=0.2.39"
-serde = { version = ">=1.0.27", optional = true }
-serde_derive = { version = ">=1.0.27", optional = true }
+libc = "0.2.39"
+serde = { version = "1.0.27", optional = true }
+serde_derive = { version = "1.0.27", optional = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 bitflags = "1.0"
 
 [dev-dependencies]
-serde_json = ">=1.0.9"
+serde_json = "1.0.9"
