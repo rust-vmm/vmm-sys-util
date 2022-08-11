@@ -1,5 +1,5 @@
 // Copyright 2019 Intel Corporation. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Collection of modules that provides helpers and utilities used by multiple
 //! [rust-vmm](https://github.com/rust-vmm/community) components.

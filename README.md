@@ -21,5 +21,4 @@ with files, event file descriptors, ioctls and others.
 
 ## License
 
-This code is licensed under [Apache-2.0](LICENSE-APACHE) and
-[BSD-3-Clause](LICENSE-BSD-3-Clause).
+This code is licensed under [BSD-3-Clause](LICENSE-BSD-3-Clause).

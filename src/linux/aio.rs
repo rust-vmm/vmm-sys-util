@@ -1,5 +1,5 @@
 // Copyright (C) 2019 Alibaba Cloud Computing. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Safe wrapper over [`Linux AIO`](http://man7.org/linux/man-pages/man7/aio.7.html).
 

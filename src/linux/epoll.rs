@@ -1,5 +1,5 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Safe wrappers over the
 //! [`epoll`](http://man7.org/linux/man-pages/man7/epoll.7.html) API.

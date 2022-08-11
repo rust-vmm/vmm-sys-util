@@ -2,7 +2,7 @@
 //
 // Copyright 2018 The Chromium OS Authors. All rights reserved.
 //
-// SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Traits for handling file synchronization and length.
 
