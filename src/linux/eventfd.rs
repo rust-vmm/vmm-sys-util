@@ -2,7 +2,7 @@
 //
 // Copyright 2017 The Chromium OS Authors. All rights reserved.
 //
-// SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Structure and wrapper functions for working with
 //! [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).

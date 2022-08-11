@@ -1,5 +1,5 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: BSD-3-Clause
 //! The purpose of this module is to provide abstractions for working with
 //! metrics in the context of rust-vmm components where there is a strong need
 //! to have metrics as an optional feature.

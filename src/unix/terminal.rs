@@ -4,7 +4,7 @@
 //
 // Copyright 2017 The Chromium OS Authors. All rights reserved.
 //
-// SPDX-License-Identifier: (Apache-2.0 AND BSD-3-Clause)
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Trait for working with [`termios`](http://man7.org/linux/man-pages/man3/termios.3.html).
 

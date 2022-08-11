@@ -7,7 +7,7 @@ repository = "https://github.com/rust-vmm/vmm-sys-util"
 readme = "README.md"
 keywords = ["utils"]
 edition = "2021"
-license = "Apache-2.0 AND BSD-3-Clause"
+license = "BSD-3-Clause"
 
 [features]
 with-serde = ["serde", "serde_derive"]

@@ -1,5 +1,5 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 
 //! Wrapper for interpreting syscall exit codes.
 
