@@ -20,7 +20,6 @@
 use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
 #[cfg(feature = "with-serde")]
 use serde::{ser::SerializeTuple, Serialize, Serializer};
-#[cfg(feature = "with-serde")]
 use std::fmt;
 #[cfg(feature = "with-serde")]
 use std::marker::PhantomData;
@@ -31,6 +30,16 @@ use std::mem::{self, size_of};
 pub enum Error {
     /// The max size has been exceeded
     SizeLimitExceeded,
+}
+
+impl std::error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::SizeLimitExceeded => write!(f, "The max size has been exceeded"),
+        }
+    }
 }
 
 /// Trait for accessing properties of C defined FAM structures.
