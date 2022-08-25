@@ -26,7 +26,7 @@ use std::marker::PhantomData;
 use std::mem::{self, size_of};
 
 /// Errors associated with the [`FamStructWrapper`](struct.FamStructWrapper.html) struct.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     /// The max size has been exceeded
     SizeLimitExceeded,
