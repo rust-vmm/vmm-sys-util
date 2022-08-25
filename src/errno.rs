@@ -17,7 +17,7 @@ use std::result;
 ///
 /// The error number is an integer number set by system calls and some libc
 /// functions in case of error.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Error(i32);
 
 /// A specialized [Result](https://doc.rust-lang.org/std/result/enum.Result.html) type

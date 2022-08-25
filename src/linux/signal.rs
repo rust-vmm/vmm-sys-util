@@ -25,7 +25,7 @@ use std::result;
 use std::thread::JoinHandle;
 
 /// The error cases enumeration for signal handling.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     /// Couldn't create a sigset.
     CreateSigset(errno::Error),
