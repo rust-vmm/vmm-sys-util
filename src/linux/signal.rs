@@ -121,7 +121,7 @@ pub fn SIGRTMAX() -> c_int {
 /// let num = validate_signal_num(1).unwrap();
 /// ```
 pub fn validate_signal_num(num: c_int) -> errno::Result<()> {
-    if (libc::SIGHUP <= num && num <= libc::SIGSYS) || (SIGRTMIN() <= num && num <= SIGRTMAX()) {
+    if (libc::SIGHUP..=libc::SIGSYS).contains(&num) || (SIGRTMIN() <= num && num <= SIGRTMAX()) {
         Ok(())
     } else {
         Err(errno::Error::new(EINVAL))

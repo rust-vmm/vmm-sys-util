@@ -581,7 +581,7 @@ mod tests {
     const MAX_LEN: usize = 100;
 
     #[repr(C)]
-    #[derive(Default, PartialEq)]
+    #[derive(Default, PartialEq, Eq)]
     pub struct __IncompleteArrayField<T>(::std::marker::PhantomData<T>, [T; 0]);
     impl<T> __IncompleteArrayField<T> {
         #[inline]
@@ -590,11 +590,11 @@ mod tests {
         }
         #[inline]
         pub unsafe fn as_ptr(&self) -> *const T {
-            ::std::mem::transmute(self)
+            self as *const __IncompleteArrayField<T> as *const T
         }
         #[inline]
         pub unsafe fn as_mut_ptr(&mut self) -> *mut T {
-            ::std::mem::transmute(self)
+            self as *mut __IncompleteArrayField<T> as *mut T
         }
         #[inline]
         pub unsafe fn as_slice(&self, len: usize) -> &[T] {
