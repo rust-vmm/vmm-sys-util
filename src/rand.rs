@@ -66,6 +66,10 @@ fn xor_psuedo_rng_u8_alphanumerics(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
     r
 }
 
+fn xor_pseudo_rng_u8_bytes(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
+    rand_fn().to_ne_bytes().to_vec()
+}
+
 fn rand_alphanumerics_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> OsString {
     let mut buf = OsString::new();
     let mut done = 0;
@@ -80,10 +84,25 @@ fn rand_alphanumerics_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> OsString {
     }
 }
 
+fn rand_bytes_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> Vec<u8> {
+    let mut buf: Vec<Vec<u8>> = Vec::new();
+    let mut num = len;
+    while num > 0 {
+        buf.push(xor_pseudo_rng_u8_bytes(rand_fn));
+        num -= 4;
+    }
+    buf.into_iter().flatten().take(len).collect()
+}
+
 /// Gets a pseudo random OsString of length `len` with characters in the
 /// range [a-zA-Z0-9].
 pub fn rand_alphanumerics(len: usize) -> OsString {
     rand_alphanumerics_impl(&xor_psuedo_rng_u32, len)
+}
+
+/// Get a pseudo random vector of `len` bytes.
+pub fn rand_bytes(len: usize) -> Vec<u8> {
+    rand_bytes_impl(&xor_psuedo_rng_u32, len)
 }
 
 #[cfg(test)]
@@ -123,5 +142,26 @@ mod tests {
     fn test_rand_alphanumerics() {
         let s = rand_alphanumerics(5);
         assert_eq!(5, s.len());
+    }
+
+    #[test]
+    fn test_xor_pseudo_rng_u8_bytes() {
+        let i = 3612982; // 55 (shifted 16 places), 33 (shifted 8 places), 54...
+                         // The 33 will be discarded as it is not a valid letter
+                         // (upper or lower) or number.
+        let s = xor_pseudo_rng_u8_bytes(&|| i);
+        assert_eq!(vec![54, 33, 55, 0], s);
+    }
+
+    #[test]
+    fn test_rand_bytes_impl() {
+        let s = rand_bytes_impl(&|| 1234567, 4);
+        assert_eq!(vec![135, 214, 18, 0], s);
+    }
+
+    #[test]
+    fn test_rand_bytes() {
+        let s = rand_bytes(8);
+        assert_eq!(8, s.len());
     }
 }
