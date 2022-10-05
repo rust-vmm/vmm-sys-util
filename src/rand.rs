@@ -39,7 +39,7 @@ pub fn timestamp_cycles() -> u64 {
 }
 
 /// Generate pseudo random u32 numbers based on the current timestamp.
-pub fn xor_psuedo_rng_u32() -> u32 {
+pub fn xor_pseudo_rng_u32() -> u32 {
     let mut t: u32 = timestamp_cycles() as u32;
     // Taken from https://en.wikipedia.org/wiki/Xorshift
     t ^= t << 13;
@@ -50,7 +50,7 @@ pub fn xor_psuedo_rng_u32() -> u32 {
 // This will get an array of numbers that can safely be converted to strings
 // because they will be in the range [a-zA-Z0-9]. The return vector could be any
 // size between 0 and 4.
-fn xor_psuedo_rng_u8_alphanumerics(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
+fn xor_pseudo_rng_u8_alphanumerics(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
     let mut r = vec![];
 
     fn between(lower: u8, upper: u8, to_check: u8) -> bool {
@@ -74,7 +74,7 @@ fn rand_alphanumerics_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> OsString {
     let mut buf = OsString::new();
     let mut done = 0;
     loop {
-        for n in xor_psuedo_rng_u8_alphanumerics(rand_fn) {
+        for n in xor_pseudo_rng_u8_alphanumerics(rand_fn) {
             done += 1;
             buf.push(str::from_utf8(&[n]).unwrap_or("_"));
             if done >= len {
@@ -97,12 +97,12 @@ fn rand_bytes_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> Vec<u8> {
 /// Gets a pseudo random OsString of length `len` with characters in the
 /// range [a-zA-Z0-9].
 pub fn rand_alphanumerics(len: usize) -> OsString {
-    rand_alphanumerics_impl(&xor_psuedo_rng_u32, len)
+    rand_alphanumerics_impl(&xor_pseudo_rng_u32, len)
 }
 
 /// Get a pseudo random vector of `len` bytes.
 pub fn rand_bytes(len: usize) -> Vec<u8> {
-    rand_bytes_impl(&xor_psuedo_rng_u32, len)
+    rand_bytes_impl(&xor_pseudo_rng_u32, len)
 }
 
 #[cfg(test)]
@@ -117,18 +117,18 @@ mod tests {
     }
 
     #[test]
-    fn test_xor_psuedo_rng_u32() {
+    fn test_xor_pseudo_rng_u32() {
         for _ in 0..1000 {
-            assert_ne!(xor_psuedo_rng_u32(), xor_psuedo_rng_u32());
+            assert_ne!(xor_pseudo_rng_u32(), xor_pseudo_rng_u32());
         }
     }
 
     #[test]
-    fn test_xor_psuedo_rng_u8_alphas() {
+    fn test_xor_pseudo_rng_u8_alphas() {
         let i = 3612982; // 55 (shifted 16 places), 33 (shifted 8 places), 54...
                          // The 33 will be discarded as it is not a valid letter
                          // (upper or lower) or number.
-        let s = xor_psuedo_rng_u8_alphanumerics(&|| i);
+        let s = xor_pseudo_rng_u8_alphanumerics(&|| i);
         assert_eq!(vec![54, 55], s);
     }
 
