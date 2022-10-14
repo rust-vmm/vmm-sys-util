@@ -51,19 +51,14 @@ pub fn xor_pseudo_rng_u32() -> u32 {
 // because they will be in the range [a-zA-Z0-9]. The return vector could be any
 // size between 0 and 4.
 fn xor_pseudo_rng_u8_alphanumerics(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
-    let mut r = vec![];
-
-    fn between(lower: u8, upper: u8, to_check: u8) -> bool {
-        (to_check >= lower) && (to_check <= upper)
-    }
-
-    for n in &rand_fn().to_ne_bytes() {
-        // Upper / Lower alphabetics and numbers.
-        if between(48, 57, *n) || between(65, 90, *n) || between(97, 122, *n) {
-            r.push(*n);
-        }
-    }
-    r
+    rand_fn()
+        .to_ne_bytes()
+        .to_vec()
+        .drain(..)
+        .filter(|val| {
+            (48..=57).contains(val) || (65..=90).contains(val) || (97..=122).contains(val)
+        })
+        .collect()
 }
 
 fn xor_pseudo_rng_u8_bytes(rand_fn: &dyn Fn() -> u32) -> Vec<u8> {
