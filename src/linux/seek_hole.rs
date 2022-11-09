@@ -48,7 +48,7 @@ const SEEK_HOLE: c_int = 4;
 
 // Safe wrapper for `libc::lseek64()`
 fn lseek(file: &mut File, offset: i64, whence: i32) -> Result<Option<u64>> {
-    // This is safe because we pass a known-good file descriptor.
+    // SAFETY: This is safe because we pass a known-good file descriptor.
     let res = unsafe { lseek64(file.as_raw_fd(), offset, whence) };
 
     if res < 0 {

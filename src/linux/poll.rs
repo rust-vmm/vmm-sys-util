@@ -376,12 +376,13 @@ impl<T: PollToken> EpollContext<T> {
     /// let ctx: EpollContext<usize> = EpollContext::new().unwrap();
     /// ```
     pub fn new() -> Result<EpollContext<T>> {
-        // Safe because we check the return value.
+        // SAFETY: Safe because we check the return value.
         let epoll_fd = unsafe { epoll_create1(EPOLL_CLOEXEC) };
         if epoll_fd < 0 {
             return errno_result();
         }
         Ok(EpollContext {
+            // SAFETY: Safe because we verified that the FD is valid and we trust `epoll_create1`.
             epoll_ctx: unsafe { File::from_raw_fd(epoll_fd) },
             tokens: PhantomData,
         })
@@ -451,8 +452,8 @@ impl<T: PollToken> EpollContext<T> {
             events: events.get_raw(),
             u64: token.as_raw_token(),
         };
-        // Safe because we give a valid epoll FD and FD to watch, as well as a valid epoll_event
-        // structure. Then we check the return value.
+        // SAFETY: Safe because we give a valid epoll FD and FD to watch, as well as a
+        // valid epoll_event structure. Then we check the return value.
         let ret = unsafe {
             epoll_ctl(
                 self.epoll_ctx.as_raw_fd(),
@@ -497,8 +498,8 @@ impl<T: PollToken> EpollContext<T> {
             events: events.0,
             u64: token.as_raw_token(),
         };
-        // Safe because we give a valid epoll FD and FD to modify, as well as a valid epoll_event
-        // structure. Then we check the return value.
+        // SAFETY: Safe because we give a valid epoll FD and FD to modify, as well as a valid
+        // epoll_event structure. Then we check the return value.
         let ret = unsafe {
             epoll_ctl(
                 self.epoll_ctx.as_raw_fd(),
@@ -537,8 +538,8 @@ impl<T: PollToken> EpollContext<T> {
     /// ctx.delete(&evt).unwrap();
     /// ```
     pub fn delete(&self, fd: &dyn AsRawFd) -> Result<()> {
-        // Safe because we give a valid epoll FD and FD to stop watching. Then we check the return
-        // value.
+        // SAFETY: Safe because we give a valid epoll FD and FD to stop watching. Then we check
+        // the return value.
         let ret = unsafe {
             epoll_ctl(
                 self.epoll_ctx.as_raw_fd(),
@@ -642,8 +643,8 @@ impl<T: PollToken> EpollContext<T> {
         let ret = {
             let mut epoll_events = events.0.borrow_mut();
             let max_events = epoll_events.len() as c_int;
-            // Safe because we give an epoll context and a properly sized epoll_events array
-            // pointer, which we trust the kernel to fill in properly.
+            // SAFETY: Safe because we give an epoll context and a properly sized epoll_events
+            // array pointer, which we trust the kernel to fill in properly.
             unsafe {
                 handle_eintr_errno!(epoll_wait(
                     self.epoll_ctx.as_raw_fd(),

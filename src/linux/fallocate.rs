@@ -82,7 +82,7 @@ pub fn fallocate(
         mode |= libc::FALLOC_FL_KEEP_SIZE;
     }
 
-    // Safe since we pass in a valid fd and fallocate mode, validate offset and len,
+    // SAFETY: Safe since we pass in a valid fd and fallocate mode, validate offset and len,
     // and check the return value.
     let ret = unsafe { libc::fallocate64(file.as_raw_fd(), mode, offset, len) };
     if ret < 0 {
