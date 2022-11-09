@@ -94,12 +94,14 @@ extern "C" {
 /// Return the minimum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
 pub fn SIGRTMIN() -> c_int {
+    // SAFETY: We trust this libc function.
     unsafe { __libc_current_sigrtmin() }
 }
 
 /// Return the maximum (inclusive) real-time signal number.
 #[allow(non_snake_case)]
 pub fn SIGRTMAX() -> c_int {
+    // SAFETY: We trust this libc function.
     unsafe { __libc_current_sigrtmax() }
 }
 
@@ -163,7 +165,7 @@ pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Res
         return Err(errno::Error::new(EINVAL));
     }
 
-    // Safe, because this is a POD struct.
+    // SAFETY: Safe, because this is a POD struct.
     let mut act: sigaction = unsafe { mem::zeroed() };
     act.sa_sigaction = handler as *const () as usize;
     act.sa_flags = libc::SA_SIGINFO;
@@ -171,11 +173,12 @@ pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Res
     // Block all signals while the `handler` is running.
     // Blocking other signals is needed to make sure the execution of
     // the handler continues uninterrupted if another signal comes.
+    // SAFETY: The parameters are valid and we trust the sifillset function.
     if unsafe { sigfillset(&mut act.sa_mask as *mut sigset_t) } < 0 {
         return errno::errno_result();
     }
 
-    // Safe because the parameters are valid and we check the return value.
+    // SAFETY: Safe because the parameters are valid and we check the return value.
     match unsafe { sigaction(num, &act, null_mut()) } {
         0 => Ok(()),
         _ => errno::errno_result(),
@@ -207,17 +210,17 @@ pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Res
 /// }
 /// ```
 pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
-    // sigset will actually be initialized by sigemptyset below.
+    // SAFETY: sigset will actually be initialized by sigemptyset below.
     let mut sigset: sigset_t = unsafe { mem::zeroed() };
 
-    // Safe - return value is checked.
+    // SAFETY: return value is checked.
     let ret = unsafe { sigemptyset(&mut sigset) };
     if ret < 0 {
         return errno::errno_result();
     }
 
     for signal in signals {
-        // Safe - return value is checked.
+        // SAFETY: return value is checked.
         let ret = unsafe { sigaddset(&mut sigset, *signal) };
         if ret < 0 {
             return errno::errno_result();
@@ -245,7 +248,7 @@ pub fn create_sigset(signals: &[c_int]) -> errno::Result<sigset_t> {
 pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
     let mut mask = Vec::new();
 
-    // Safe - return values are checked.
+    // SAFETY: return values are checked.
     unsafe {
         let mut old_sigset: sigset_t = mem::zeroed();
         let ret = pthread_sigmask(SIG_BLOCK, null(), &mut old_sigset as *mut sigset_t);
@@ -287,7 +290,7 @@ pub fn get_blocked_signals() -> SignalResult<Vec<c_int>> {
 pub fn block_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
-    // Safe - return values are checked.
+    // SAFETY: return values are checked.
     unsafe {
         let mut old_sigset: sigset_t = mem::zeroed();
         let ret = pthread_sigmask(SIG_BLOCK, &sigset, &mut old_sigset as *mut sigset_t);
@@ -324,7 +327,7 @@ pub fn block_signal(num: c_int) -> SignalResult<()> {
 pub fn unblock_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
-    // Safe - return value is checked.
+    // SAFETY: return value is checked.
     let ret = unsafe { pthread_sigmask(SIG_UNBLOCK, &sigset, null_mut()) };
     if ret < 0 {
         return Err(Error::UnblockSignal(errno::Error::last()));
@@ -367,7 +370,7 @@ pub fn clear_signal(num: c_int) -> SignalResult<()> {
     let sigset = create_sigset(&[num]).map_err(Error::CreateSigset)?;
 
     while {
-        // This is safe as we are rigorously checking return values
+        // SAFETY: This is safe as we are rigorously checking return values
         // of libc calls.
         unsafe {
             let mut siginfo: siginfo_t = mem::zeroed();
@@ -432,7 +435,7 @@ pub unsafe trait Killable {
     fn kill(&self, num: c_int) -> errno::Result<()> {
         validate_signal_num(num)?;
 
-        // Safe because we ensure we are using a valid pthread handle,
+        // SAFETY: Safe because we ensure we are using a valid pthread handle,
         // a valid signal number, and check the return result.
         let ret = unsafe { pthread_kill(self.pthread_handle(), num) };
         if ret < 0 {
@@ -442,7 +445,7 @@ pub unsafe trait Killable {
     }
 }
 
-// Safe because we fulfill our contract of returning a genuine pthread handle.
+// SAFETY: Safe because we fulfill our contract of returning a genuine pthread handle.
 unsafe impl<T> Killable for JoinHandle<T> {
     fn pthread_handle(&self) -> pthread_t {
         // JoinHandleExt::as_pthread_t gives c_ulong, convert it to the
@@ -454,6 +457,7 @@ unsafe impl<T> Killable for JoinHandle<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
     use std::thread;
     use std::time::Duration;
