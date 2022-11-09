@@ -28,13 +28,13 @@ impl TimerFd {
     /// change after system startup. The timer is initally disarmed and must be
     /// armed by calling [`reset`](fn.reset.html).
     pub fn new() -> Result<TimerFd> {
-        // Safe because this doesn't modify any memory and we check the return value.
+        // SAFETY: Safe because this doesn't modify any memory and we check the return value.
         let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
         if ret < 0 {
             return errno_result();
         }
 
-        // Safe because we uniquely own the file descriptor.
+        // SAFETY: Safe because we uniquely own the file descriptor.
         Ok(TimerFd(unsafe { File::from_raw_fd(ret) }))
     }
 
@@ -64,7 +64,7 @@ impl TimerFd {
     /// timer.reset(dur, Some(interval)).unwrap();
     /// ```
     pub fn reset(&mut self, dur: Duration, interval: Option<Duration>) -> Result<()> {
-        // Safe because we are zero-initializing a struct with only primitive member fields.
+        // SAFETY: Safe because we are zero-initializing a struct with only primitive member fields.
         let mut spec: libc::itimerspec = unsafe { mem::zeroed() };
         // https://github.com/rust-lang/libc/issues/1848
         #[cfg_attr(target_env = "musl", allow(deprecated))]
@@ -86,7 +86,7 @@ impl TimerFd {
             spec.it_interval.tv_nsec = libc::c_long::from(nsec);
         }
 
-        // Safe because this doesn't modify any memory and we check the return value.
+        // SAFETY: Safe because this doesn't modify any memory and we check the return value.
         let ret = unsafe { timerfd_settime(self.as_raw_fd(), 0, &spec, ptr::null_mut()) };
         if ret < 0 {
             return errno_result();
@@ -121,7 +121,7 @@ impl TimerFd {
     pub fn wait(&mut self) -> Result<u64> {
         let mut count = 0u64;
 
-        // Safe because this will only modify |buf| and we check the return value.
+        // SAFETY: Safe because this will only modify |buf| and we check the return value.
         let ret = unsafe {
             libc::read(
                 self.as_raw_fd(),
@@ -157,10 +157,10 @@ impl TimerFd {
     /// assert!(timer.is_armed().unwrap());
     /// ```
     pub fn is_armed(&self) -> Result<bool> {
-        // Safe because we are zero-initializing a struct with only primitive member fields.
+        // SAFETY: Safe because we are zero-initializing a struct with only primitive member fields.
         let mut spec: libc::itimerspec = unsafe { mem::zeroed() };
 
-        // Safe because timerfd_gettime is trusted to only modify `spec`.
+        // SAFETY: Safe because timerfd_gettime is trusted to only modify `spec`.
         let ret = unsafe { timerfd_gettime(self.as_raw_fd(), &mut spec) };
         if ret < 0 {
             return errno_result();
@@ -188,10 +188,10 @@ impl TimerFd {
     /// timer.clear().unwrap();
     /// ```
     pub fn clear(&mut self) -> Result<()> {
-        // Safe because we are zero-initializing a struct with only primitive member fields.
+        // SAFETY: Safe because we are zero-initializing a struct with only primitive member fields.
         let spec: libc::itimerspec = unsafe { mem::zeroed() };
 
-        // Safe because this doesn't modify any memory and we check the return value.
+        // SAFETY: Safe because this doesn't modify any memory and we check the return value.
         let ret = unsafe { timerfd_settime(self.as_raw_fd(), 0, &spec, ptr::null_mut()) };
         if ret < 0 {
             return errno_result();
@@ -226,6 +226,7 @@ impl IntoRawFd for TimerFd {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
     use std::thread::sleep;
     use std::time::{Duration, Instant};

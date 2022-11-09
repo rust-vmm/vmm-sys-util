@@ -37,11 +37,9 @@ impl TempDir {
         // unwrap this result as the internal bytes can't have a null with a valid path.
         let dir_name = CString::new(dir_string.into_vec()).unwrap();
         let mut dir_bytes = dir_name.into_bytes_with_nul();
-        let ret = unsafe {
-            // Creating the directory isn't unsafe.  The fact that it modifies the guts of the path
-            // is also OK because it only overwrites the last 6 Xs added above.
-            libc::mkdtemp(dir_bytes.as_mut_ptr() as *mut libc::c_char)
-        };
+        // SAFETY: Creating the directory isn't unsafe.  The fact that it modifies the guts of the
+        // path is also OK because it only overwrites the last 6 Xs added above.
+        let ret = unsafe { libc::mkdtemp(dir_bytes.as_mut_ptr() as *mut libc::c_char) };
         if ret.is_null() {
             return errno_result();
         }

@@ -39,15 +39,15 @@ impl EventFd {
     /// EventFd::new(EFD_NONBLOCK).unwrap();
     /// ```
     pub fn new(flag: i32) -> result::Result<EventFd, io::Error> {
-        // This is safe because eventfd merely allocated an eventfd for
+        // SAFETY: This is safe because eventfd merely allocated an eventfd for
         // our process and we handle the error case.
         let ret = unsafe { eventfd(0, flag) };
         if ret < 0 {
             Err(io::Error::last_os_error())
         } else {
-            // This is safe because we checked ret for success and know
-            // the kernel gave us an fd that we own.
             Ok(EventFd {
+                // SAFETY: This is safe because we checked ret for success and know
+                // the kernel gave us an fd that we own.
                 eventfd: unsafe { File::from_raw_fd(ret) },
             })
         }
@@ -74,7 +74,7 @@ impl EventFd {
     /// evt.write(55).unwrap();
     /// ```
     pub fn write(&self, v: u64) -> result::Result<(), io::Error> {
-        // This is safe because we made this fd and the pointer we pass
+        // SAFETY: This is safe because we made this fd and the pointer we pass
         // can not overflow because we give the syscall's size parameter properly.
         let ret = unsafe {
             write(
@@ -108,9 +108,9 @@ impl EventFd {
     /// ```
     pub fn read(&self) -> result::Result<u64, io::Error> {
         let mut buf: u64 = 0;
+        // SAFETY: This is safe because we made this fd and the pointer we
+        // pass can not overflow because we give the syscall's size parameter properly.
         let ret = unsafe {
-            // This is safe because we made this fd and the pointer we
-            // pass can not overflow because we give the syscall's size parameter properly.
             read(
                 self.as_raw_fd(),
                 &mut buf as *mut u64 as *mut c_void,
@@ -141,14 +141,15 @@ impl EventFd {
     /// assert_eq!(evt_clone.read().unwrap(), 923);
     /// ```
     pub fn try_clone(&self) -> result::Result<EventFd, io::Error> {
-        // This is safe because we made this fd and properly check that it returns without error.
+        // SAFETY: This is safe because we made this fd and properly check that it returns
+        // without error.
         let ret = unsafe { dup(self.as_raw_fd()) };
         if ret < 0 {
             Err(io::Error::last_os_error())
         } else {
-            // This is safe because we checked ret for success and know the kernel gave us an fd that we
-            // own.
             Ok(EventFd {
+                // SAFETY: This is safe because we checked ret for success and know the kernel
+                // gave us an fd that we own.
                 eventfd: unsafe { File::from_raw_fd(ret) },
             })
         }
