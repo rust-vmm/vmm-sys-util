@@ -1,4 +1,10 @@
 # Changelog
+## Unreleased
+
+### Changed
+- [[#178](https://github.com/rust-vmm/vmm-sys-util/issues/178)]: Fixed a bug in
+  `rand_bytes` that was triggering a panic when the number of bytes was not a
+  multiple of 4.
 
 ## v0.11.0
 
