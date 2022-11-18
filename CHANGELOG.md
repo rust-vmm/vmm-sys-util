@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.11.0
+
+### Added
+- Added `rand_bytes` function that generates a pseudo random vector of
+  `len` bytes.
+- Added implementation of `std::error::Error` for `fam::Error`.
+  - Added derive `Eq` and `PartialEq` for error types.
+
+### Changed
+- [[#161](https://github.com/rust-vmm/vmm-sys-util/issues/161)]: Updated the
+  license to BSD-3-Clause.
+- Use edition 2021.
+- [[vm-memory#199](https://github.com/rust-vmm/vm-memory/issues/199)]: Use caret
+  dependencies. This is the idiomatic way of specifying dependencies.
+  With this we reduce the risk of breaking customer code when new releases of
+  the dependencies are published.
+- Renamed `xor_psuedo_rng_u32` to `xor_pseudo_rng_u32` to fix a typo.
+- Renamed `xor_psuedo_rng_u8_alphanumerics` to `xor_pseudo_rng_u8_alphanumerics`
+  to fix a typo.
+
 ## v0.10.0
 
 ### Added
