@@ -211,6 +211,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         let mut mem_allocator = Vec::with_capacity(required_mem_allocator_capacity);
         mem_allocator.push(T::default());
         for _ in 1..required_mem_allocator_capacity {
+            // SAFETY: Safe as long T follows the requirements of being POD.
             mem_allocator.push(unsafe { mem::zeroed() })
         }
         mem_allocator[0].set_len(num_elements);
@@ -370,12 +371,14 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         let current_mem_allocator_len = self.mem_allocator.len();
         let required_mem_allocator_len = FamStructWrapper::<T>::mem_allocator_len(len);
         // Update the len of the `mem_allocator`.
-        // This is safe since enough capacity has been reserved.
+        // SAFETY: This is safe since enough capacity has been reserved.
         unsafe {
             self.mem_allocator.set_len(required_mem_allocator_len);
         }
         // Zero-initialize the additional elements if any.
         for i in current_mem_allocator_len..required_mem_allocator_len {
+            // SAFETY: Safe as long as the trait is only implemented for POD. This is a requirement
+            // for the trait implementation.
             self.mem_allocator[i] = unsafe { mem::zeroed() }
         }
         // Update the len of the underlying `FamStruct`.
@@ -448,16 +451,20 @@ impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
 
         let mut mem_allocator = Vec::with_capacity(required_mem_allocator_capacity);
 
-        // This is safe as long as the requirements for the `FamStruct` trait to be safe are met
-        // (the implementing type and the entries elements are POD, therefore `Copy`, so memory
-        // safety can't be violated by the ownership of `fam_struct`). It is also safe because we're
-        // trying to read a T from a `&T` that is pointing to a properly initialized and aligned T.
+        // SAFETY: This is safe as long as the requirements for the `FamStruct` trait to be safe
+        // are met (the implementing type and the entries elements are POD, therefore `Copy`, so
+        // memory safety can't be violated by the ownership of `fam_struct`). It is also safe
+        // because we're trying to read a T from a `&T` that is pointing to a properly initialized
+        // and aligned T.
         unsafe {
             let fam_struct: T = std::ptr::read(self.as_fam_struct_ref());
             mem_allocator.push(fam_struct);
         }
         for _ in 1..required_mem_allocator_capacity {
-            mem_allocator.push(unsafe { mem::zeroed() })
+            mem_allocator.push(
+                // SAFETY: This is safe as long as T respects the FamStruct trait and is a POD.
+                unsafe { mem::zeroed() },
+            )
         }
 
         let mut adapter = FamStructWrapper { mem_allocator };
@@ -573,6 +580,7 @@ macro_rules! generate_fam_struct_impl {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
     #[cfg(feature = "with-serde")]
     use serde_derive::{Deserialize, Serialize};
 

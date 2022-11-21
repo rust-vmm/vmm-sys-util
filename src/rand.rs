@@ -17,7 +17,7 @@ use std::str;
 /// and something undefined for other architectures.
 pub fn timestamp_cycles() -> u64 {
     #[cfg(target_arch = "x86_64")]
-    // Safe because there's nothing that can go wrong with this call.
+    // SAFETY: Safe because there's nothing that can go wrong with this call.
     unsafe {
         std::arch::x86_64::_rdtsc() as u64
     }
@@ -30,7 +30,7 @@ pub fn timestamp_cycles() -> u64 {
             tv_sec: 0,
             tv_nsec: 0,
         };
-
+        // SAFETY: We initialized the parameters correctly and we trust the function.
         unsafe {
             libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts);
         }

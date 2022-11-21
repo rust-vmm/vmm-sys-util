@@ -172,6 +172,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
             #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
             __pad1: 0,
         };
+        // SAFETY: Check comments below for each call.
         unsafe {
             // Safe because cmsg_buffer was allocated to be large enough to contain cmsghdr.
             write_unaligned(cmsg_buffer.as_mut_ptr() as *mut cmsghdr, cmsg);
@@ -188,8 +189,8 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
         set_msg_controllen(&mut msg, cmsg_capacity);
     }
 
-    // Safe because the msghdr was properly constructed from valid (or null) pointers of the
-    // indicated length and we check the return value.
+    // SAFETY: Safe because the msghdr was properly constructed from valid (or null) pointers of
+    // the indicated length and we check the return value.
     let write_count = unsafe { sendmsg(fd, &msg, MSG_NOSIGNAL) };
 
     if write_count == -1 {
@@ -372,14 +373,14 @@ pub trait ScmSocket {
             iov_len: buf.len(),
         }];
 
-        // Safe because we have mutably borrowed buf and it's safe to write arbitrary data
+        // SAFETY: Safe because we have mutably borrowed buf and it's safe to write arbitrary data
         // to a slice.
         let (read_count, fd_count) = unsafe { self.recv_with_fds(&mut iovecs[..], &mut fd)? };
         let file = if fd_count == 0 {
             None
         } else {
-            // Safe because the first fd from recv_with_fds is owned by us and valid because this
-            // branch was taken.
+            // SAFETY: Safe because the first fd from recv_with_fds is owned by us and valid
+            // because this branch was taken.
             Some(unsafe { File::from_raw_fd(fd[0]) })
         };
         Ok((read_count, file))
@@ -439,8 +440,8 @@ pub unsafe trait IntoIovec {
     fn size(&self) -> usize;
 }
 
-// Safe because this slice can not have another mutable reference and it's pointer and size are
-// guaranteed to be valid.
+// SAFETY: Safe because this slice can not have another mutable reference and it's pointer and
+// size are guaranteed to be valid.
 unsafe impl<'a> IntoIovec for &'a [u8] {
     // Clippy false positive: https://github.com/rust-lang/rust-clippy/issues/3480
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::useless_asref))]
@@ -455,6 +456,7 @@ unsafe impl<'a> IntoIovec for &'a [u8] {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
     use crate::eventfd::EventFd;
 

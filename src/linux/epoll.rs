@@ -204,8 +204,11 @@ pub struct Epoll {
 impl Epoll {
     /// Create a new epoll file descriptor.
     pub fn new() -> io::Result<Self> {
-        // Safe because the return code is transformed by `into_result` in a `Result`.
-        let epoll_fd = SyscallReturnCode(unsafe { epoll_create1(EPOLL_CLOEXEC) }).into_result()?;
+        let epoll_fd = SyscallReturnCode(
+            // SAFETY: Safe because the return code is transformed by `into_result` in a `Result`.
+            unsafe { epoll_create1(EPOLL_CLOEXEC) },
+        )
+        .into_result()?;
         Ok(Epoll { epoll_fd })
     }
 
@@ -247,16 +250,18 @@ impl Epoll {
     ///     .unwrap();
     /// ```
     pub fn ctl(&self, operation: ControlOperation, fd: RawFd, event: EpollEvent) -> io::Result<()> {
-        // Safe because we give a valid epoll file descriptor, a valid file descriptor to watch,
-        // as well as a valid epoll_event structure. We also check the return value.
-        SyscallReturnCode(unsafe {
-            epoll_ctl(
-                self.epoll_fd,
-                operation as i32,
-                fd,
-                &event as *const EpollEvent as *mut epoll_event,
-            )
-        })
+        SyscallReturnCode(
+            // SAFETY: Safe because we give a valid epoll file descriptor, a valid file descriptor
+            // to watch, as well as a valid epoll_event structure. We also check the return value.
+            unsafe {
+                epoll_ctl(
+                    self.epoll_fd,
+                    operation as i32,
+                    fd,
+                    &event as *const EpollEvent as *mut epoll_event,
+                )
+            },
+        )
         .into_empty_result()
     }
 
@@ -295,17 +300,20 @@ impl Epoll {
     /// assert_eq!(ev_count, 1);
     /// ```
     pub fn wait(&self, timeout: i32, events: &mut [EpollEvent]) -> io::Result<usize> {
-        // Safe because we give a valid epoll file descriptor and an array of epoll_event structures
-        // that will be modified by the kernel to indicate information about the subset of file
-        // descriptors in the interest list. We also check the return value.
-        let events_count = SyscallReturnCode(unsafe {
-            epoll_wait(
-                self.epoll_fd,
-                events.as_mut_ptr() as *mut epoll_event,
-                events.len() as i32,
-                timeout,
-            )
-        })
+        let events_count = SyscallReturnCode(
+            // SAFETY: Safe because we give a valid epoll file descriptor and an array of
+            // epoll_event structures that will be modified by the kernel to indicate information
+            // about the subset of file descriptors in the interest list.
+            // We also check the return value.
+            unsafe {
+                epoll_wait(
+                    self.epoll_fd,
+                    events.as_mut_ptr() as *mut epoll_event,
+                    events.len() as i32,
+                    timeout,
+                )
+            },
+        )
         .into_result()? as usize;
 
         Ok(events_count)
@@ -320,7 +328,7 @@ impl AsRawFd for Epoll {
 
 impl Drop for Epoll {
     fn drop(&mut self) {
-        // Safe because this fd is opened with `epoll_create` and we trust
+        // SAFETY: Safe because this fd is opened with `epoll_create` and we trust
         // the kernel to give us a valid fd.
         unsafe {
             libc::close(self.epoll_fd);

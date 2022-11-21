@@ -89,8 +89,8 @@ impl IoContext {
         }
 
         let mut ctx = IoContext(0);
-        // Safe because we have checked the result.
         let rc =
+            // SAFETY: Safe because we use valid parameters and check the result.
             unsafe { libc::syscall(libc::SYS_io_setup, nr_events, &mut ctx as *mut Self) as c_int };
         if rc < 0 {
             Err(Error::last_os_error())
@@ -126,8 +126,8 @@ impl IoContext {
     /// assert_eq!(ctx.submit(&iocbs[..]).unwrap(), 1);
     /// ```
     pub fn submit(&self, iocbs: &[&mut IoControlBlock]) -> Result<usize> {
+        // SAFETY: It's safe because parameters are valid and we have checked the result.
         let rc = unsafe {
-            // It's safe because parameters are valid and we have checked the result.
             libc::syscall(
                 libc::SYS_io_submit,
                 self.0,
@@ -153,8 +153,8 @@ impl IoContext {
     /// * `result`: If the operation is successfully canceled, the event will be copied into the
     ///             memory pointed to by result without being placed into the completion queue.
     pub fn cancel(&self, iocb: &IoControlBlock, result: &mut IoEvent) -> Result<()> {
+        // SAFETY: It's safe because parameters are valid and we have checked the result.
         let rc = unsafe {
-            // It's safe because parameters are valid and we have checked the result.
             libc::syscall(
                 libc::SYS_io_cancel,
                 self.0,
@@ -226,7 +226,7 @@ impl IoContext {
             None => null_mut() as *mut libc::timespec,
         };
 
-        // It's safe because parameters are valid and we have checked the result.
+        // SAFETY: It's safe because parameters are valid and we have checked the result.
         let rc = unsafe {
             libc::syscall(
                 libc::SYS_io_getevents,
@@ -248,7 +248,7 @@ impl IoContext {
 impl Drop for IoContext {
     fn drop(&mut self) {
         if self.0 != 0 {
-            // It's safe because the context is created by us.
+            // SAFETY: It's safe because the context is created by us.
             let _ = unsafe { libc::syscall(libc::SYS_io_destroy, self.0) as c_int };
         }
     }
