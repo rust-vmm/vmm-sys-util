@@ -5,6 +5,9 @@
 - [[#178](https://github.com/rust-vmm/vmm-sys-util/issues/178)]: Fixed a bug in
   `rand_bytes` that was triggering a panic when the number of bytes was not a
   multiple of 4.
+- [[#181](https://github.com/rust-vmm/vmm-sys-util/pull/181)]: Changed
+  `TempFile::new_with_prefix()` on linux to use `mkstemp` to prevent name 
+  collisions.
 
 ## v0.11.0
 

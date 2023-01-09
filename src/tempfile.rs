@@ -29,11 +29,12 @@
 use std::env::temp_dir;
 use std::ffi::OsStr;
 use std::fs;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
-use crate::errno::{Error, Result};
-use crate::rand::rand_alphanumerics;
+use libc;
+
+use crate::errno::{errno_result, Error, Result};
 
 /// Wrapper for working with temporary files.
 ///
@@ -51,7 +52,55 @@ impl TempFile {
     /// `prefix`: The path and filename where to create the temporary file. Six
     /// random alphanumeric characters will be added to the end of this to form
     /// the filename.
+    #[cfg(unix)]
     pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
+        use std::ffi::CString;
+        use std::os::unix::{ffi::OsStrExt, io::FromRawFd};
+
+        let mut os_fname = prefix.as_ref().to_os_string();
+        os_fname.push("XXXXXX");
+
+        let raw_fname = match CString::new(os_fname.as_bytes()) {
+            Ok(c_string) => c_string.into_raw(),
+            Err(_) => return Err(Error::new(libc::EINVAL)),
+        };
+
+        // SAFETY: Safe because `raw_fname` originates from CString::into_raw, meaning
+        // it is a pointer to a nul-terminated sequence of characters.
+        let fd = unsafe { libc::mkstemp(raw_fname) };
+        if fd == -1 {
+            return errno_result();
+        }
+
+        // SAFETY: raw_fname originates from a call to CString::into_raw. The length
+        // of the string has not changed, as mkstemp returns a valid file name, and
+        // '\0' cannot be part of a valid filename.
+        let c_tempname = unsafe { CString::from_raw(raw_fname) };
+        let os_tempname = OsStr::from_bytes(c_tempname.as_bytes());
+
+        // SAFETY: Safe because we checked `fd != -1` above and we uniquely own the file
+        // descriptor. This `fd` will be freed etc when `File` and thus
+        // `TempFile` goes out of scope.
+        let file = unsafe { File::from_raw_fd(fd) };
+
+        Ok(TempFile {
+            path: PathBuf::from(os_tempname),
+            file: Some(file),
+        })
+    }
+
+    /// Creates the TempFile using a prefix.
+    ///
+    /// # Arguments
+    ///
+    /// `prefix`: The path and filename where to create the temporary file. Six
+    /// random alphanumeric characters will be added to the end of this to form
+    /// the filename.
+    #[cfg(windows)]
+    pub fn new_with_prefix<P: AsRef<OsStr>>(prefix: P) -> Result<TempFile> {
+        use crate::rand::rand_alphanumerics;
+        use std::fs::OpenOptions;
+
         let file_path_str = format!(
             "{}{}",
             prefix.as_ref().to_str().unwrap_or_default(),
