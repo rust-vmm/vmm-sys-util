@@ -1,5 +1,5 @@
 # Changelog
-## Unreleased
+## v0.11.1
 
 ### Changed
 - [[#178](https://github.com/rust-vmm/vmm-sys-util/issues/178)]: Fixed a bug in
