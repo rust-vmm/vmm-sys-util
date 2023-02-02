@@ -90,7 +90,7 @@ impl PollToken for usize {
 
 impl PollToken for u64 {
     fn as_raw_token(&self) -> u64 {
-        *self as u64
+        *self
     }
 
     fn from_raw_token(data: u64) -> Self {
@@ -834,6 +834,8 @@ impl<T: PollToken> PollContext<T> {
             let mut buf = [0u8; 512];
             let (res, len) = {
                 let mut buf_cursor = Cursor::new(&mut buf[..]);
+                // Oops, clippy bug. See https://github.com/rust-lang/rust-clippy/issues/9810
+                #[allow(clippy::write_literal)]
                 (
                     writeln!(
                         &mut buf_cursor,

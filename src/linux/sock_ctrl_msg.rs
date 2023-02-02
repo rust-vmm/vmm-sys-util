@@ -98,7 +98,10 @@ fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
 
 // This function is like CMSG_NEXT, but safer because it reads only from references, although it
 // does some pointer arithmetic on cmsg_ptr.
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::cast_ptr_alignment, clippy::unnecessary_cast)
+)]
 fn get_next_cmsg(msghdr: &msghdr, cmsg: &cmsghdr, cmsg_ptr: *mut cmsghdr) -> *mut cmsghdr {
     let next_cmsg = (cmsg_ptr as *mut u8).wrapping_add(CMSG_ALIGN!(cmsg.cmsg_len)) as *mut cmsghdr;
     if next_cmsg
@@ -200,6 +203,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
     }
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::unnecessary_cast))]
 unsafe fn raw_recvmsg(
     fd: RawFd,
     iovecs: &mut [iovec],
@@ -241,7 +245,7 @@ unsafe fn raw_recvmsg(
         // read.
         let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fds_count = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
+            let fds_count: usize = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
             // The sender can transmit more data than we can buffer. If a message is too long to
             // fit in the supplied buffer, excess bytes may be discarded depending on the type of
             // socket the message is received from.

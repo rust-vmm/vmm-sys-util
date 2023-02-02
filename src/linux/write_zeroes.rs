@@ -28,7 +28,7 @@ pub trait PunchHole {
 
 impl PunchHole for File {
     fn punch_hole(&mut self, offset: u64, length: u64) -> Result<()> {
-        fallocate(self, FallocateMode::PunchHole, true, offset, length as u64)
+        fallocate(self, FallocateMode::PunchHole, true, offset, length)
             .map_err(|e| Error::from_raw_os_error(e.errno()))
     }
 }
