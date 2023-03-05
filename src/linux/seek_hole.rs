@@ -84,7 +84,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn seek_cur(file: &mut File) -> u64 {
-        file.seek(SeekFrom::Current(0)).unwrap()
+        file.stream_position().unwrap()
     }
 
     #[test]
@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(seek_cur(&mut file), 0xFFFF);
 
         // seek_hole at or after the end of the file should return None
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x10000).unwrap(), None);
         assert_eq!(seek_cur(&mut file), 0);
         assert_eq!(file.seek_hole(0x10001).unwrap(), None);
@@ -172,18 +172,18 @@ mod tests {
         assert_eq!(seek_cur(&mut file), 0xFFFF);
 
         // seek_hole within data should return the next hole (EOF)
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x10000).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x10001).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x1FFFF).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
 
         // seek_hole at EOF after data should return None
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x20000).unwrap(), None);
         assert_eq!(seek_cur(&mut file), 0);
 
@@ -193,21 +193,21 @@ mod tests {
         assert_eq!(seek_cur(&mut file), 0);
         assert_eq!(file.seek_hole(0xFFFF).unwrap(), Some(0xFFFF));
         assert_eq!(seek_cur(&mut file), 0xFFFF);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x10000).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x1FFFF).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x20000).unwrap(), Some(0x20000));
         assert_eq!(seek_cur(&mut file), 0x20000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x20001).unwrap(), Some(0x20001));
         assert_eq!(seek_cur(&mut file), 0x20001);
 
         // seek_hole at EOF after a hole should return None
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x30000).unwrap(), None);
         assert_eq!(seek_cur(&mut file), 0);
 
@@ -218,10 +218,10 @@ mod tests {
         // seek_hole within [0x20000, 0x30000) should now find the hole at EOF
         assert_eq!(file.seek_hole(0x20000).unwrap(), Some(0x30000));
         assert_eq!(seek_cur(&mut file), 0x30000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x20001).unwrap(), Some(0x30000));
         assert_eq!(seek_cur(&mut file), 0x30000);
-        file.seek(SeekFrom::Start(0)).unwrap();
+        file.rewind().unwrap();
         assert_eq!(file.seek_hole(0x30000).unwrap(), None);
         assert_eq!(seek_cur(&mut file), 0);
     }
