@@ -140,7 +140,7 @@ impl WriteZeroesAt for File {
 
 impl<T: WriteZeroesAt + Seek> WriteZeroes for T {
     fn write_zeroes(&mut self, length: usize) -> Result<usize> {
-        let offset = self.seek(SeekFrom::Current(0))?;
+        let offset = self.stream_position()?;
         let num_written = self.write_zeroes_at(offset, length)?;
         // Advance the seek cursor as if we had done a real write().
         self.seek(SeekFrom::Current(num_written as i64))?;
@@ -171,7 +171,7 @@ mod tests {
 
         // Read back the data plus some overlap on each side.
         let mut readback = [0u8; 16384];
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.read_exact(&mut readback).unwrap();
         // Bytes before the write should still be 0.
         for read in &readback[0..1234] {
@@ -190,10 +190,10 @@ mod tests {
         f.seek(SeekFrom::Start(2345)).unwrap();
         f.write_all_zeroes(4321).unwrap();
         // Verify seek position after `write_all_zeroes()`.
-        assert_eq!(f.seek(SeekFrom::Current(0)).unwrap(), 2345 + 4321);
+        assert_eq!(f.stream_position().unwrap(), 2345 + 4321);
 
         // Read back the data and verify that it is now zero.
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.read_exact(&mut readback).unwrap();
         // Bytes before the write should still be 0.
         for read in &readback[0..1234] {
@@ -228,19 +228,19 @@ mod tests {
         // Write buffer of non-zero bytes. The size of the buffer will be the new
         // size of the file.
         let orig_data = [NON_ZERO_VALUE; SIZE];
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.write_all(&orig_data).unwrap();
         assert_eq!(f.metadata().unwrap().len(), SIZE as u64);
 
         // Overwrite some of the data with zeroes.
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.write_all_zeroes(0x1_0001).unwrap();
         // Verify seek position after `write_all_zeroes()`.
-        assert_eq!(f.seek(SeekFrom::Current(0)).unwrap(), 0x1_0001);
+        assert_eq!(f.stream_position().unwrap(), 0x1_0001);
 
         // Read back the data and verify that it is now zero.
         let mut readback = [0u8; SIZE];
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.read_exact(&mut readback).unwrap();
         // Verify that `write_all_zeroes()` zeroed the intended region.
         for read in &readback[0..0x1_0001] {
@@ -253,7 +253,7 @@ mod tests {
 
         // Now let's zero a certain region by using `write_all_zeroes_at()`.
         f.write_all_zeroes_at(0x1_8001, 0x200).unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.read_exact(&mut readback).unwrap();
 
         // Original data should still exist before the zeroed region.
@@ -281,7 +281,7 @@ mod tests {
         // Write buffer of non-zero bytes. The size of the buffer will be the new
         // size of the file.
         let orig_data = [NON_ZERO_VALUE; SIZE];
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.write_all(&orig_data).unwrap();
         assert_eq!(f.metadata().unwrap().len(), SIZE as u64);
 
@@ -291,7 +291,7 @@ mod tests {
 
         // Read back the data.
         let mut readback = [0u8; SIZE];
-        f.seek(SeekFrom::Start(0)).unwrap();
+        f.rewind().unwrap();
         f.read_exact(&mut readback).unwrap();
         // Original data should still exist before the hole.
         for read in &readback[0..0x1_0001] {
