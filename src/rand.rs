@@ -124,13 +124,21 @@ mod tests {
                          // The 33 will be discarded as it is not a valid letter
                          // (upper or lower) or number.
         let s = xor_pseudo_rng_u8_alphanumerics(&|| i);
-        assert_eq!(vec![54, 55], s);
+        if cfg!(target_endian = "big") {
+            assert_eq!(vec![55, 54], s);
+        } else {
+            assert_eq!(vec![54, 55], s);
+        }
     }
 
     #[test]
     fn test_rand_alphanumerics_impl() {
         let s = rand_alphanumerics_impl(&|| 14134, 5);
-        assert_eq!("67676", s);
+        if cfg!(target_endian = "big") {
+            assert_eq!("76767", s);
+        } else {
+            assert_eq!("67676", s);
+        }
     }
 
     #[test]
@@ -145,13 +153,21 @@ mod tests {
                          // The 33 will be discarded as it is not a valid letter
                          // (upper or lower) or number.
         let s = xor_pseudo_rng_u8_bytes(&|| i);
-        assert_eq!(vec![54, 33, 55, 0], s);
+        if cfg!(target_endian = "big") {
+            assert_eq!(vec![0, 55, 33, 54], s);
+        } else {
+            assert_eq!(vec![54, 33, 55, 0], s);
+        }
     }
 
     #[test]
     fn test_rand_bytes_impl() {
         let s = rand_bytes_impl(&|| 1234567, 4);
-        assert_eq!(vec![135, 214, 18, 0], s);
+        if cfg!(target_endian = "big") {
+            assert_eq!(vec![0, 18, 214, 135], s);
+        } else {
+            assert_eq!(vec![135, 214, 18, 0], s);
+        }
     }
 
     #[test]
