@@ -6,6 +6,7 @@
 use std::os::raw::c_int;
 
 /// Wrapper to interpret syscall exit codes and provide a rustacean `io::Result`.
+#[derive(Debug)]
 pub struct SyscallReturnCode(pub c_int);
 
 impl SyscallReturnCode {

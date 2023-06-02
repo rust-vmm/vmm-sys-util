@@ -19,6 +19,7 @@ use crate::errno::{errno_result, Result};
 
 /// A safe wrapper around a Linux
 /// [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
+#[derive(Debug)]
 pub struct TimerFd(File);
 
 impl TimerFd {

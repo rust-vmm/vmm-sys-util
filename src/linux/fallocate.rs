@@ -14,6 +14,7 @@ use crate::errno::{errno_result, Error, Result};
 /// Operation to be performed on a given range when calling [`fallocate`]
 ///
 /// [`fallocate`]: fn.fallocate.html
+#[derive(Debug)]
 pub enum FallocateMode {
     /// Deallocating file space.
     PunchHole,

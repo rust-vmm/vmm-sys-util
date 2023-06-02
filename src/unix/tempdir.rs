@@ -16,6 +16,7 @@ use crate::errno::{errno_result, Error, Result};
 /// Wrapper over a temporary directory.
 ///
 /// The directory will be maintained for the lifetime of the `TempDir` object.
+#[derive(Debug)]
 pub struct TempDir {
     path: PathBuf,
 }
