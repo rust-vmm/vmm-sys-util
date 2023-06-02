@@ -39,6 +39,7 @@ use crate::errno::{errno_result, Error, Result};
 /// Wrapper for working with temporary files.
 ///
 /// The file will be maintained for the lifetime of the `TempFile` object.
+#[derive(Debug)]
 pub struct TempFile {
     path: PathBuf,
     file: Option<File>,

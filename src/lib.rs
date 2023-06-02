@@ -4,7 +4,7 @@
 //! Collection of modules that provides helpers and utilities used by multiple
 //! [rust-vmm](https://github.com/rust-vmm/community) components.
 
-#![deny(missing_docs)]
+#![deny(missing_docs, missing_debug_implementations)]
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;

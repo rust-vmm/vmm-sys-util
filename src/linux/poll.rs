@@ -47,6 +47,12 @@ const POLL_CONTEXT_MAX_EVENTS: usize = 16;
 /// This should only be used with [`EpollContext`](struct.EpollContext.html).
 pub struct EpollEvents(RefCell<[epoll_event; POLL_CONTEXT_MAX_EVENTS]>);
 
+impl std::fmt::Debug for EpollEvents {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EpollEvents {{ ... }}")
+    }
+}
+
 impl EpollEvents {
     /// Creates a new EpollEvents.
     pub fn new() -> EpollEvents {
@@ -142,6 +148,15 @@ pub struct PollEvent<'a, T> {
     token: PhantomData<T>, // Needed to satisfy usage of T
 }
 
+impl<T> std::fmt::Debug for PollEvent<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PollEvent")
+            .field("event", &"?")
+            .field("token", &self.token)
+            .finish()
+    }
+}
+
 impl<'a, T: PollToken> PollEvent<'a, T> {
     /// Gets the token associated in
     /// [`PollContext::add`](struct.PollContext.html#method.add) with this event.
@@ -189,6 +204,7 @@ impl<'a, T: PollToken> PollEvent<'a, T> {
 
 /// An iterator over a subset of events returned by
 /// [`PollContext::wait`](struct.PollContext.html#method.wait).
+#[derive(Debug)]
 pub struct PollEventIter<'a, I, T>
 where
     I: Iterator<Item = &'a epoll_event>,
@@ -220,6 +236,16 @@ pub struct PollEvents<'a, T> {
     count: usize,
     events: Ref<'a, [epoll_event; POLL_CONTEXT_MAX_EVENTS]>,
     tokens: PhantomData<[T]>, // Needed to satisfy usage of T
+}
+
+impl<T> std::fmt::Debug for PollEvents<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PollEventsOwned")
+            .field("count", &self.count)
+            .field("events", &"?")
+            .field("tokens", &self.tokens)
+            .finish()
+    }
 }
 
 impl<'a, T: PollToken> PollEvents<'a, T> {
@@ -270,6 +296,16 @@ pub struct PollEventsOwned<T> {
     tokens: PhantomData<T>, // Needed to satisfy usage of T
 }
 
+impl<T> std::fmt::Debug for PollEventsOwned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PollEventsOwned")
+            .field("count", &self.count)
+            .field("events", &"?")
+            .field("tokens", &self.tokens)
+            .finish()
+    }
+}
+
 impl<T: PollToken> PollEventsOwned<T> {
     /// Creates borrowed structure from owned structure
     /// [`PollEventsOwned`](struct.PollEventsOwned.html).
@@ -286,7 +322,7 @@ impl<T: PollToken> PollEventsOwned<T> {
 }
 
 /// Watching events taken by [`PollContext`](struct.PollContext.html).
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct WatchingEvents(u32);
 
 impl WatchingEvents {
@@ -355,6 +391,7 @@ impl WatchingEvents {
 ///     assert_eq!(event.token(), 1);
 /// }
 /// ```
+#[derive(Debug)]
 pub struct EpollContext<T> {
     epoll_ctx: File,
     // Needed to satisfy usage of T
@@ -699,6 +736,7 @@ impl<T: PollToken> IntoRawFd for EpollContext<T> {
 /// let tokens: Vec<u32> = pollevents.iter_readable().map(|e| e.token()).collect();
 /// assert_eq!(&tokens[..], &[2]);
 /// ```
+#[derive(Debug)]
 pub struct PollContext<T> {
     epoll_ctx: EpollContext<T>,
 

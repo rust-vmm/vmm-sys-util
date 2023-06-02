@@ -19,6 +19,7 @@ use libc::{
 use crate::syscall::SyscallReturnCode;
 
 /// Wrapper over `EPOLL_CTL_*` operations that can be performed on a file descriptor.
+#[derive(Debug)]
 #[repr(i32)]
 pub enum ControlOperation {
     /// Add a file descriptor to the interest list.
