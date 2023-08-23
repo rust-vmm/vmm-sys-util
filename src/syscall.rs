@@ -7,12 +7,12 @@ use std::os::raw::c_int;
 
 /// Wrapper to interpret syscall exit codes and provide a rustacean `io::Result`.
 #[derive(Debug)]
-pub struct SyscallReturnCode(pub c_int);
+pub struct SyscallReturnCode<T: From<i8> + Eq = c_int>(pub T);
 
-impl SyscallReturnCode {
+impl<T: From<i8> + Eq> SyscallReturnCode<T> {
     /// Returns the last OS error if value is -1 or Ok(value) otherwise.
-    pub fn into_result(self) -> std::io::Result<c_int> {
-        if self.0 == -1 {
+    pub fn into_result(self) -> std::io::Result<T> {
+        if self.0 == T::from(-1) {
             Err(std::io::Error::last_os_error())
         } else {
             Ok(self.0)
@@ -47,5 +47,14 @@ mod tests {
 
         syscall_code = SyscallReturnCode(-1);
         assert!(syscall_code.into_empty_result().is_err());
+
+        let mut syscall_code_long = SyscallReturnCode(1i64);
+        match syscall_code_long.into_result() {
+            Ok(_value) => (),
+            _ => unreachable!(),
+        }
+
+        syscall_code_long = SyscallReturnCode(-1i64);
+        assert!(syscall_code_long.into_result().is_err());
     }
 }

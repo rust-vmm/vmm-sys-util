@@ -1,4 +1,7 @@
 # Changelog
+## Upcoming Release
+- Updated `SyscallReturnCode` to accept any signed integer type.
+
 ## v0.11.1
 
 ### Changed
