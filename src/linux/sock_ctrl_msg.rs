@@ -154,7 +154,7 @@ impl CmsgBuffer {
 }
 
 fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Result<usize> {
-    let cmsg_capacity = CMSG_SPACE!(size_of::<RawFd>() * out_fds.len());
+    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(out_fds));
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
 
     let mut iovecs = Vec::with_capacity(out_data.len());
@@ -169,7 +169,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
 
     if !out_fds.is_empty() {
         let cmsg = cmsghdr {
-            cmsg_len: CMSG_LEN!(size_of::<RawFd>() * out_fds.len()),
+            cmsg_len: CMSG_LEN!(std::mem::size_of_val(out_fds)),
             cmsg_level: SOL_SOCKET,
             cmsg_type: SCM_RIGHTS,
             #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
@@ -178,7 +178,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
         // SAFETY: Check comments below for each call.
         unsafe {
             // Safe because cmsg_buffer was allocated to be large enough to contain cmsghdr.
-            write_unaligned(cmsg_buffer.as_mut_ptr() as *mut cmsghdr, cmsg);
+            write_unaligned(cmsg_buffer.as_mut_ptr(), cmsg);
             // Safe because the cmsg_buffer was allocated to be large enough to hold out_fds.len()
             // file descriptors.
             copy_nonoverlapping(
@@ -209,7 +209,7 @@ unsafe fn raw_recvmsg(
     iovecs: &mut [iovec],
     in_fds: &mut [RawFd],
 ) -> Result<(usize, usize)> {
-    let cmsg_capacity = CMSG_SPACE!(size_of::<RawFd>() * in_fds.len());
+    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(in_fds));
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
     let mut msg = new_msghdr(iovecs);
 

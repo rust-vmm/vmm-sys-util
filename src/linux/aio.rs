@@ -223,7 +223,7 @@ impl IoContext {
     ) -> Result<usize> {
         let to = match timeout {
             Some(val) => val as *mut libc::timespec,
-            None => null_mut() as *mut libc::timespec,
+            None => null_mut(),
         };
 
         // SAFETY: It's safe because parameters are valid and we have checked the result.
