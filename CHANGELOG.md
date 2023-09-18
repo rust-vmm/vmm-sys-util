@@ -1,6 +1,10 @@
 # Changelog
-## Upcoming Release
-- Updated `SyscallReturnCode` to accept any signed integer type.
+
+## v0.11.2
+
+### Changed
+- [[#201](https://github.com/rust-vmm/vmm-sys-util/pull/201)] Updated `SyscallReturnCode`
+  to accept any signed integer type.
 
 ## v0.11.1
 
