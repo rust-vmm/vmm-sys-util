@@ -61,22 +61,21 @@ impl TempFile {
         let mut os_fname = prefix.as_ref().to_os_string();
         os_fname.push("XXXXXX");
 
-        let raw_fname = match CString::new(os_fname.as_bytes()) {
-            Ok(c_string) => c_string.into_raw(),
-            Err(_) => return Err(Error::new(libc::EINVAL)),
+        let c_tempname = CString::new(os_fname.as_bytes()).map_err(|_| Error::new(libc::EINVAL))?;
+        let raw_tempname = c_tempname.into_raw();
+
+        // SAFETY: Safe because `c_tempname` is a null-terminated string, as it originates from
+        // `CString::into_raw`.
+        let ret = unsafe { libc::mkstemp(raw_tempname) };
+
+        // SAFETY: `raw_tempname` originates from `CString::into_raw`.
+        let c_tempname = unsafe { CString::from_raw(raw_tempname) };
+
+        let fd = match ret {
+            -1 => return errno_result(),
+            _ => ret,
         };
 
-        // SAFETY: Safe because `raw_fname` originates from CString::into_raw, meaning
-        // it is a pointer to a nul-terminated sequence of characters.
-        let fd = unsafe { libc::mkstemp(raw_fname) };
-        if fd == -1 {
-            return errno_result();
-        }
-
-        // SAFETY: raw_fname originates from a call to CString::into_raw. The length
-        // of the string has not changed, as mkstemp returns a valid file name, and
-        // '\0' cannot be part of a valid filename.
-        let c_tempname = unsafe { CString::from_raw(raw_fname) };
         let os_tempname = OsStr::from_bytes(c_tempname.as_bytes());
 
         // SAFETY: Safe because we checked `fd != -1` above and we uniquely own the file
