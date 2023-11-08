@@ -9,6 +9,10 @@ keywords = ["utils"]
 edition = "2021"
 license = "BSD-3-Clause"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 with-serde = ["serde", "serde_derive"]
 
