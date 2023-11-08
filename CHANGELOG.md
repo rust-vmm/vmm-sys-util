@@ -1,5 +1,10 @@
 # Changelog
 
+## Upcoming version
+
+### Changed
+- Added all features to the generated docs.rs documentation.
+
 ## v0.11.2
 
 ### Changed

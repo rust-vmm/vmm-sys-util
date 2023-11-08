@@ -5,6 +5,7 @@
 //! [rust-vmm](https://github.com/rust-vmm/community) components.
 
 #![deny(missing_docs, missing_debug_implementations)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;
