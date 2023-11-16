@@ -16,6 +16,10 @@
   https://github.com/rust-vmm/vmm-sys-util/security/advisories/GHSA-875g-mfp6-g7f9
   for more information.
 
+### Fixed
+- Fixed `ioctl_io*_nr` macros expanding unhygenically, requiring for example the
+  import of `ioctl_ioc_nr!` when using `ioctl_iow_nr!`.
+
 ## v0.11.2
 
 ### Changed
