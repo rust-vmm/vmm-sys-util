@@ -5,6 +5,10 @@
 ### Changed
 - Added all features to the generated docs.rs documentation.
 
+### Fixed
+- Fixed `ioctl_io*_nr` macros expanding unhygenically, requiring for example the
+  import of `ioctl_ioc_nr!` when using `ioctl_iow_nr!`.
+
 ## v0.11.2
 
 ### Changed
