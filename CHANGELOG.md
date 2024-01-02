@@ -1,9 +1,13 @@
 # Changelog
 
-## Upcoming version
+## v0.12.0
 
 ### Changed
 - Added all features to the generated docs.rs documentation.
+- Fixed a bug in `serde` implementation of `FamStructWrapper` which allowed out of
+  bounds memory access from Rust-safe code. See the related GHSA here:
+  https://github.com/rust-vmm/vmm-sys-util/security/advisories/GHSA-875g-mfp6-g7f9
+  for more information.
 
 ## v0.11.2
 
