@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.1
+
+### Changed
+- [[#215](https://github.com/rust-vmm/vmm-sys-util/pull/215)]: Make
+  `as_mut_fam_struct()` public and unsafe to let users modify fields of the
+  header other than the length.
+
 ## v0.12.0
 
 ### Changed
