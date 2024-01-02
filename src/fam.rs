@@ -50,6 +50,8 @@ impl fmt::Display for Error {
 /// * the implementer should be a POD
 /// * the implementor should contain a flexible array member of elements of type `Entry`
 /// * `Entry` should be a POD
+/// * the implementor should ensures that the FAM length as returned by [`FamStruct::len()`]
+///   always describes correctly the length of the flexible array member.
 ///
 /// Violating these may cause problems.
 ///
@@ -249,7 +251,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         let mut adapter = FamStructWrapper::<T>::new(entries.len())?;
 
         {
-            let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
+            // SAFETY: We are not modifying the length of the FamStruct
+            let wrapper_entries = unsafe { adapter.as_mut_fam_struct().as_mut_slice() };
             wrapper_entries.copy_from_slice(entries);
         }
 
@@ -285,8 +288,13 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         &self.mem_allocator[0]
     }
 
-    // Get a mut reference to the actual [`FamStruct`](trait.FamStruct.html) instance.
-    fn as_mut_fam_struct(&mut self) -> &mut T {
+    /// Get a mut reference to the actual [`FamStruct`](trait.FamStruct.html) instance.
+    ///
+    /// # Safety
+    ///
+    /// Callers must not use the reference returned to modify the `len` filed of the underlying
+    /// `FamStruct`. See also the top-level documentation of [`FamStruct`].
+    pub unsafe fn as_mut_fam_struct(&mut self) -> &mut T {
         &mut self.mem_allocator[0]
     }
 
@@ -309,7 +317,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     /// Modifying the container referenced by this pointer may cause its buffer
     /// to be reallocated, which would also make any pointers to it invalid.
     pub fn as_mut_fam_struct_ptr(&mut self) -> *mut T {
-        self.as_mut_fam_struct()
+        // SAFETY: We do not change the length of the underlying FamStruct.
+        unsafe { self.as_mut_fam_struct() }
     }
 
     /// Get the elements slice.
@@ -319,7 +328,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
 
     /// Get the mutable elements slice.
     pub fn as_mut_slice(&mut self) -> &mut [T::Entry] {
-        self.as_mut_fam_struct().as_mut_slice()
+        // SAFETY: We do not change the length of the underlying FamStruct.
+        unsafe { self.as_mut_fam_struct() }.as_mut_slice()
     }
 
     /// Get the number of elements of type `FamStruct::Entry` currently in the vec.
@@ -495,7 +505,7 @@ impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
 
         let mut adapter = FamStructWrapper { mem_allocator };
         {
-            let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
+            let wrapper_entries = adapter.as_mut_slice();
             wrapper_entries.copy_from_slice(self.as_slice());
         }
         adapter
@@ -966,7 +976,7 @@ mod tests {
             assert_eq!(payload[0], 0xA5);
             assert_eq!(payload[1], 0x1e);
         }
-        assert_eq!(wrapper.as_mut_fam_struct().padding, 5);
+        assert_eq!(unsafe { wrapper.as_mut_fam_struct() }.padding, 5);
         let data = wrapper.into_raw();
         assert_eq!(data[0].len, 2);
         assert_eq!(data[0].padding, 5);
@@ -1052,54 +1062,57 @@ mod tests {
         type FooFamStructWrapper = FamStructWrapper<Foo>;
 
         let mut wrapper = FooFamStructWrapper::new(0).unwrap();
-        wrapper.as_mut_fam_struct().index = 1;
-        wrapper.as_mut_fam_struct().flags = 2;
-        wrapper.as_mut_fam_struct().length = 3;
-        wrapper.push(3).unwrap();
-        wrapper.push(14).unwrap();
-        assert_eq!(wrapper.as_slice().len(), 3 + 2);
-        assert_eq!(wrapper.as_slice()[3], 3);
-        assert_eq!(wrapper.as_slice()[3 + 1], 14);
+        // SAFETY: We do play with length here, but that's just for testing purposes :)
+        unsafe {
+            wrapper.as_mut_fam_struct().index = 1;
+            wrapper.as_mut_fam_struct().flags = 2;
+            wrapper.as_mut_fam_struct().length = 3;
+            wrapper.push(3).unwrap();
+            wrapper.push(14).unwrap();
+            assert_eq!(wrapper.as_slice().len(), 3 + 2);
+            assert_eq!(wrapper.as_slice()[3], 3);
+            assert_eq!(wrapper.as_slice()[3 + 1], 14);
 
-        let mut wrapper2 = wrapper.clone();
-        assert_eq!(
-            wrapper.as_mut_fam_struct().index,
-            wrapper2.as_mut_fam_struct().index
-        );
-        assert_eq!(
-            wrapper.as_mut_fam_struct().length,
-            wrapper2.as_mut_fam_struct().length
-        );
-        assert_eq!(
-            wrapper.as_mut_fam_struct().flags,
-            wrapper2.as_mut_fam_struct().flags
-        );
-        assert_eq!(wrapper.as_slice(), wrapper2.as_slice());
-        assert_eq!(
-            wrapper2.as_slice().len(),
-            wrapper2.as_mut_fam_struct().length as usize
-        );
-        assert!(wrapper == wrapper2);
+            let mut wrapper2 = wrapper.clone();
+            assert_eq!(
+                wrapper.as_mut_fam_struct().index,
+                wrapper2.as_mut_fam_struct().index
+            );
+            assert_eq!(
+                wrapper.as_mut_fam_struct().length,
+                wrapper2.as_mut_fam_struct().length
+            );
+            assert_eq!(
+                wrapper.as_mut_fam_struct().flags,
+                wrapper2.as_mut_fam_struct().flags
+            );
+            assert_eq!(wrapper.as_slice(), wrapper2.as_slice());
+            assert_eq!(
+                wrapper2.as_slice().len(),
+                wrapper2.as_mut_fam_struct().length as usize
+            );
+            assert!(wrapper == wrapper2);
 
-        wrapper.as_mut_fam_struct().index = 3;
-        assert!(wrapper != wrapper2);
+            wrapper.as_mut_fam_struct().index = 3;
+            assert!(wrapper != wrapper2);
 
-        wrapper.as_mut_fam_struct().length = 7;
-        assert!(wrapper != wrapper2);
+            wrapper.as_mut_fam_struct().length = 7;
+            assert!(wrapper != wrapper2);
 
-        wrapper.push(1).unwrap();
-        assert_eq!(wrapper.as_mut_fam_struct().length, 8);
-        assert!(wrapper != wrapper2);
+            wrapper.push(1).unwrap();
+            assert_eq!(wrapper.as_mut_fam_struct().length, 8);
+            assert!(wrapper != wrapper2);
 
-        let mut wrapper2 = wrapper.clone();
-        assert!(wrapper == wrapper2);
+            let mut wrapper2 = wrapper.clone();
+            assert!(wrapper == wrapper2);
 
-        // Dropping the original variable should not affect its clone.
-        drop(wrapper);
-        assert_eq!(wrapper2.as_mut_fam_struct().index, 3);
-        assert_eq!(wrapper2.as_mut_fam_struct().length, 8);
-        assert_eq!(wrapper2.as_mut_fam_struct().flags, 2);
-        assert_eq!(wrapper2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
+            // Dropping the original variable should not affect its clone.
+            drop(wrapper);
+            assert_eq!(wrapper2.as_mut_fam_struct().index, 3);
+            assert_eq!(wrapper2.as_mut_fam_struct().length, 8);
+            assert_eq!(wrapper2.as_mut_fam_struct().flags, 2);
+            assert_eq!(wrapper2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
+        }
     }
 
     #[cfg(feature = "with-serde")]
