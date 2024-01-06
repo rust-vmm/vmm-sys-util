@@ -292,7 +292,7 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     ///
     /// # Safety
     ///
-    /// Callers must not use the reference returned to modify the `len` filed of the underlying
+    /// Callers must not use the reference returned to modify the `len` field of the underlying
     /// `FamStruct`. See also the top-level documentation of [`FamStruct`].
     pub unsafe fn as_mut_fam_struct(&mut self) -> &mut T {
         &mut self.mem_allocator[0]
