@@ -50,6 +50,8 @@ impl fmt::Display for Error {
 /// * the implementer should be a POD
 /// * the implementor should contain a flexible array member of elements of type `Entry`
 /// * `Entry` should be a POD
+/// * the implementor should ensures that the FAM length as returned by [`FamStruct::len()`]
+///   always describes correctly the length of the flexible array member.
 ///
 /// Violating these may cause problems.
 ///
@@ -99,7 +101,7 @@ impl fmt::Display for Error {
 ///         self.len as usize
 ///     }
 ///
-///     fn set_len(&mut self, len: usize) {
+///     unsafe fn set_len(&mut self, len: usize) {
 ///         self.len = len as u32
 ///     }
 ///
@@ -135,7 +137,12 @@ pub unsafe trait FamStruct {
     ///
     /// These type of structures contain a member that holds the FAM length.
     /// This method will set the value of that member.
-    fn set_len(&mut self, len: usize);
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that `len` here reflects the correct number of entries of the
+    /// flexible array part of the struct.
+    unsafe fn set_len(&mut self, len: usize);
 
     /// Get max allowed FAM length
     ///
@@ -220,7 +227,11 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
             // SAFETY: Safe as long T follows the requirements of being POD.
             mem_allocator.push(unsafe { mem::zeroed() })
         }
-        mem_allocator[0].set_len(num_elements);
+        // SAFETY: The flexible array part of the struct has `num_elements` capacity. We just
+        // initialized this in `mem_allocator`.
+        unsafe {
+            mem_allocator[0].set_len(num_elements);
+        }
 
         Ok(FamStructWrapper { mem_allocator })
     }
@@ -240,7 +251,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         let mut adapter = FamStructWrapper::<T>::new(entries.len())?;
 
         {
-            let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
+            // SAFETY: We are not modifying the length of the FamStruct
+            let wrapper_entries = unsafe { adapter.as_mut_fam_struct().as_mut_slice() };
             wrapper_entries.copy_from_slice(entries);
         }
 
@@ -277,7 +289,12 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     }
 
     /// Get a mut reference to the actual [`FamStruct`](trait.FamStruct.html) instance.
-    pub fn as_mut_fam_struct(&mut self) -> &mut T {
+    ///
+    /// # Safety
+    ///
+    /// Callers must not use the reference returned to modify the `len` field of the underlying
+    /// `FamStruct`. See also the top-level documentation of [`FamStruct`].
+    pub unsafe fn as_mut_fam_struct(&mut self) -> &mut T {
         &mut self.mem_allocator[0]
     }
 
@@ -300,7 +317,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     /// Modifying the container referenced by this pointer may cause its buffer
     /// to be reallocated, which would also make any pointers to it invalid.
     pub fn as_mut_fam_struct_ptr(&mut self) -> *mut T {
-        self.as_mut_fam_struct()
+        // SAFETY: We do not change the length of the underlying FamStruct.
+        unsafe { self.as_mut_fam_struct() }
     }
 
     /// Get the elements slice.
@@ -310,7 +328,8 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
 
     /// Get the mutable elements slice.
     pub fn as_mut_slice(&mut self) -> &mut [T::Entry] {
-        self.as_mut_fam_struct().as_mut_slice()
+        // SAFETY: We do not change the length of the underlying FamStruct.
+        unsafe { self.as_mut_fam_struct() }.as_mut_slice()
     }
 
     /// Get the number of elements of type `FamStruct::Entry` currently in the vec.
@@ -395,7 +414,11 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
             self.mem_allocator[i] = unsafe { mem::zeroed() }
         }
         // Update the len of the underlying `FamStruct`.
-        self.as_mut_fam_struct().set_len(len);
+        // SAFETY: We just adjusted the memory for the underlying `mem_allocator` to hold `len`
+        // entries.
+        unsafe {
+            self.as_mut_fam_struct().set_len(len);
+        }
 
         // If the len needs to be decreased, deallocate unnecessary memory
         if additional_elements < 0 {
@@ -482,7 +505,7 @@ impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
 
         let mut adapter = FamStructWrapper { mem_allocator };
         {
-            let wrapper_entries = adapter.as_mut_fam_struct().as_mut_slice();
+            let wrapper_entries = adapter.as_mut_slice();
             wrapper_entries.copy_from_slice(self.as_slice());
         }
         adapter
@@ -540,12 +563,22 @@ where
             {
                 use serde::de::Error;
 
-                let header = seq
+                let header: X = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
                 let entries: Vec<X::Entry> = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+
+                if header.len() != entries.len() {
+                    let msg = format!(
+                        "Mismatch between length of FAM specified in FamStruct header ({}) \
+                         and actual size of FAM ({})",
+                        header.len(),
+                        entries.len()
+                    );
+                    return Err(V::Error::custom(msg));
+                }
 
                 let mut result: Self::Value = FamStructWrapper::from_entries(entries.as_slice())
                     .map_err(|e| V::Error::custom(format!("{:?}", e)))?;
@@ -570,7 +603,7 @@ macro_rules! generate_fam_struct_impl {
                 self.$field_name as usize
             }
 
-            fn set_len(&mut self, len: usize) {
+            unsafe fn set_len(&mut self, len: usize) {
                 self.$field_name = len as $field_type;
             }
 
@@ -603,7 +636,7 @@ mod tests {
     const MAX_LEN: usize = 100;
 
     #[repr(C)]
-    #[derive(Default, PartialEq, Eq)]
+    #[derive(Default, Debug, PartialEq, Eq)]
     pub struct __IncompleteArrayField<T>(::std::marker::PhantomData<T>, [T; 0]);
     impl<T> __IncompleteArrayField<T> {
         #[inline]
@@ -943,7 +976,7 @@ mod tests {
             assert_eq!(payload[0], 0xA5);
             assert_eq!(payload[1], 0x1e);
         }
-        assert_eq!(wrapper.as_mut_fam_struct().padding, 5);
+        assert_eq!(unsafe { wrapper.as_mut_fam_struct() }.padding, 5);
         let data = wrapper.into_raw();
         assert_eq!(data[0].len, 2);
         assert_eq!(data[0].padding, 5);
@@ -1029,53 +1062,81 @@ mod tests {
         type FooFamStructWrapper = FamStructWrapper<Foo>;
 
         let mut wrapper = FooFamStructWrapper::new(0).unwrap();
-        wrapper.as_mut_fam_struct().index = 1;
-        wrapper.as_mut_fam_struct().flags = 2;
-        wrapper.as_mut_fam_struct().length = 3;
-        wrapper.push(3).unwrap();
-        wrapper.push(14).unwrap();
-        assert_eq!(wrapper.as_slice().len(), 3 + 2);
-        assert_eq!(wrapper.as_slice()[3], 3);
-        assert_eq!(wrapper.as_slice()[3 + 1], 14);
+        // SAFETY: We do play with length here, but that's just for testing purposes :)
+        unsafe {
+            wrapper.as_mut_fam_struct().index = 1;
+            wrapper.as_mut_fam_struct().flags = 2;
+            wrapper.as_mut_fam_struct().length = 3;
+            wrapper.push(3).unwrap();
+            wrapper.push(14).unwrap();
+            assert_eq!(wrapper.as_slice().len(), 3 + 2);
+            assert_eq!(wrapper.as_slice()[3], 3);
+            assert_eq!(wrapper.as_slice()[3 + 1], 14);
 
-        let mut wrapper2 = wrapper.clone();
-        assert_eq!(
-            wrapper.as_mut_fam_struct().index,
-            wrapper2.as_mut_fam_struct().index
+            let mut wrapper2 = wrapper.clone();
+            assert_eq!(
+                wrapper.as_mut_fam_struct().index,
+                wrapper2.as_mut_fam_struct().index
+            );
+            assert_eq!(
+                wrapper.as_mut_fam_struct().length,
+                wrapper2.as_mut_fam_struct().length
+            );
+            assert_eq!(
+                wrapper.as_mut_fam_struct().flags,
+                wrapper2.as_mut_fam_struct().flags
+            );
+            assert_eq!(wrapper.as_slice(), wrapper2.as_slice());
+            assert_eq!(
+                wrapper2.as_slice().len(),
+                wrapper2.as_mut_fam_struct().length as usize
+            );
+            assert!(wrapper == wrapper2);
+
+            wrapper.as_mut_fam_struct().index = 3;
+            assert!(wrapper != wrapper2);
+
+            wrapper.as_mut_fam_struct().length = 7;
+            assert!(wrapper != wrapper2);
+
+            wrapper.push(1).unwrap();
+            assert_eq!(wrapper.as_mut_fam_struct().length, 8);
+            assert!(wrapper != wrapper2);
+
+            let mut wrapper2 = wrapper.clone();
+            assert!(wrapper == wrapper2);
+
+            // Dropping the original variable should not affect its clone.
+            drop(wrapper);
+            assert_eq!(wrapper2.as_mut_fam_struct().index, 3);
+            assert_eq!(wrapper2.as_mut_fam_struct().length, 8);
+            assert_eq!(wrapper2.as_mut_fam_struct().flags, 2);
+            assert_eq!(wrapper2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
+        }
+    }
+
+    #[cfg(feature = "with-serde")]
+    #[test]
+    fn test_bad_deserialize() {
+        #[repr(C)]
+        #[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
+        struct Foo {
+            pub len: u32,
+            pub padding: u32,
+            pub entries: __IncompleteArrayField<u32>,
+        }
+
+        generate_fam_struct_impl!(Foo, u32, entries, u32, len, 100);
+
+        let state = FamStructWrapper::<Foo>::new(0).unwrap();
+        let mut bytes = bincode::serialize(&state).unwrap();
+
+        // The `len` field of the header is the first to be serialized.
+        // Writing at position 0 of the serialized data should change its value.
+        bytes[0] = 255;
+
+        assert!(
+            matches!(bincode::deserialize::<FamStructWrapper<Foo>>(&bytes).map_err(|boxed| *boxed), Err(bincode::ErrorKind::Custom(s)) if s == *"Mismatch between length of FAM specified in FamStruct header (255) and actual size of FAM (0)")
         );
-        assert_eq!(
-            wrapper.as_mut_fam_struct().length,
-            wrapper2.as_mut_fam_struct().length
-        );
-        assert_eq!(
-            wrapper.as_mut_fam_struct().flags,
-            wrapper2.as_mut_fam_struct().flags
-        );
-        assert_eq!(wrapper.as_slice(), wrapper2.as_slice());
-        assert_eq!(
-            wrapper2.as_slice().len(),
-            wrapper2.as_mut_fam_struct().length as usize
-        );
-        assert!(wrapper == wrapper2);
-
-        wrapper.as_mut_fam_struct().index = 3;
-        assert!(wrapper != wrapper2);
-
-        wrapper.as_mut_fam_struct().length = 7;
-        assert!(wrapper != wrapper2);
-
-        wrapper.push(1).unwrap();
-        assert_eq!(wrapper.as_mut_fam_struct().length, 8);
-        assert!(wrapper != wrapper2);
-
-        let mut wrapper2 = wrapper.clone();
-        assert!(wrapper == wrapper2);
-
-        // Dropping the original variable should not affect its clone.
-        drop(wrapper);
-        assert_eq!(wrapper2.as_mut_fam_struct().index, 3);
-        assert_eq!(wrapper2.as_mut_fam_struct().length, 8);
-        assert_eq!(wrapper2.as_mut_fam_struct().flags, 2);
-        assert_eq!(wrapper2.as_slice(), [0, 0, 0, 3, 14, 0, 0, 1]);
     }
 }

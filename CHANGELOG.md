@@ -1,9 +1,20 @@
 # Changelog
 
-## Upcoming version
+## v0.12.1
+
+### Changed
+- [[#215](https://github.com/rust-vmm/vmm-sys-util/pull/215)]: Make
+  `as_mut_fam_struct()` public and unsafe to let users modify fields of the
+  header other than the length.
+
+## v0.12.0
 
 ### Changed
 - Added all features to the generated docs.rs documentation.
+- Fixed a bug in `serde` implementation of `FamStructWrapper` which allowed out of
+  bounds memory access from Rust-safe code. See the related GHSA here:
+  https://github.com/rust-vmm/vmm-sys-util/security/advisories/GHSA-875g-mfp6-g7f9
+  for more information.
 
 ### Fixed
 - Fixed `ioctl_io*_nr` macros expanding unhygenically, requiring for example the
