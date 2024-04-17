@@ -132,7 +132,7 @@ pub fn errno_result<T>() -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::temp_dir;
+    use crate::tempfile::TempFile;
     use std::error::Error as _;
     use std::fs::OpenOptions;
     use std::io::{self, Read};
@@ -145,14 +145,16 @@ mod tests {
         let expected_errno = libc::EIO;
 
         // try to read from a file without read permissions
-        let mut path = temp_dir();
-        path.push("test");
+        let temp_file = TempFile::new().unwrap();
+        let path = temp_file.as_path().to_owned();
+        // Drop temp_file so we can cleanly reuse path below.
+        std::mem::drop(temp_file);
         let mut file = OpenOptions::new()
             .read(false)
             .write(true)
             .create(true)
             .truncate(true)
-            .open(path)
+            .open(&path)
             .unwrap();
         let mut buf: Vec<u8> = Vec::new();
         assert!(file.read_to_end(&mut buf).is_err());
@@ -174,6 +176,8 @@ mod tests {
         let last_err: io::Error = last_err.into();
         // Test creating a `std::io::Error` from an `Error`
         assert_eq!(io::Error::last_os_error().kind(), last_err.kind());
+
+        assert!(std::fs::remove_file(&path).is_ok());
     }
 
     #[test]
