@@ -27,6 +27,7 @@ use std::mem::{self, size_of};
 
 /// Errors associated with the [`FamStructWrapper`](struct.FamStructWrapper.html) struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(bolero::TypeGenerator))]
 pub enum Error {
     /// The max size has been exceeded
     SizeLimitExceeded,
@@ -1138,5 +1139,61 @@ mod tests {
         assert!(
             matches!(bincode::deserialize::<FamStructWrapper<Foo>>(&bytes).map_err(|boxed| *boxed), Err(bincode::ErrorKind::Custom(s)) if s == *"Mismatch between length of FAM specified in FamStruct header (255) and actual size of FAM (0)")
         );
+    }
+}
+
+#[cfg(kani)]
+mod kani_harnesses {
+
+    use super::*;
+
+    #[repr(C)]
+    #[derive(Default, Debug, PartialEq, Eq)]
+    pub struct __IncompleteArrayField<T>(::std::marker::PhantomData<T>, [T; 0]);
+    impl<T> __IncompleteArrayField<T> {
+        #[inline]
+        pub fn new() -> Self {
+            __IncompleteArrayField(::std::marker::PhantomData, [])
+        }
+        #[inline]
+        pub unsafe fn as_ptr(&self) -> *const T {
+            self as *const __IncompleteArrayField<T> as *const T
+        }
+        #[inline]
+        pub unsafe fn as_mut_ptr(&mut self) -> *mut T {
+            self as *mut __IncompleteArrayField<T> as *mut T
+        }
+        #[inline]
+        pub unsafe fn as_slice(&self, len: usize) -> &[T] {
+            ::std::slice::from_raw_parts(self.as_ptr(), len)
+        }
+        #[inline]
+        pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [T] {
+            ::std::slice::from_raw_parts_mut(self.as_mut_ptr(), len)
+        }
+    }
+
+    #[repr(C)]
+    #[derive(Default, PartialEq)]
+    struct MockFamStructU8 {
+        pub len: u32,
+        pub padding: u32,
+        pub entries: __IncompleteArrayField<u8>,
+    }
+    generate_fam_struct_impl!(MockFamStructU8, u8, entries, u32, len, 100);
+    type MockFamStructWrapperU8 = FamStructWrapper<MockFamStructU8>;
+
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn prove_as_mut_fam_struct() {
+        type U8Wrapper = FamStructWrapper<MockFamStructU8>;
+
+        let len: usize = kani::any();
+
+        let mut adapter = U8Wrapper::new(len).unwrap();
+
+        unsafe {
+            adapter.as_mut_fam_struct();
+        }
     }
 }
