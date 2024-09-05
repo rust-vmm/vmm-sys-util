@@ -1196,4 +1196,52 @@ mod kani_harnesses {
             adapter.as_mut_fam_struct();
         }
     }
+
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn prove_into_raw() {
+        type U8Wrapper = FamStructWrapper<MockFamStructU8>;
+
+        let len: usize = kani::any();
+
+        let mut adapter = U8Wrapper::new(len).unwrap();
+
+        adapter.into_raw();
+    }
+
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn prove_as_fam_struct_ptr() {
+        type U8Wrapper = FamStructWrapper<MockFamStructU8>;
+
+        let len: usize = kani::any();
+
+        let mut adapter = U8Wrapper::new(len).unwrap();
+
+        adapter.as_fam_struct_ptr();
+    }
+
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn prove_len() {
+        type U8Wrapper = FamStructWrapper<MockFamStructU8>;
+
+        let len: usize = kani::any();
+
+        let mut adapter = U8Wrapper::new(len).unwrap();
+
+        adapter.len();
+    }
+
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn prove_capacity() {
+        type U8Wrapper = FamStructWrapper<MockFamStructU8>;
+
+        let len: usize = kani::any();
+
+        let mut adapter = U8Wrapper::new(len).unwrap();
+
+        adapter.capacity();
+    }
 }
