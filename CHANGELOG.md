@@ -1,5 +1,13 @@
 # Changelog
 
+## Upcoming
+
+### Changed
+
+- [[#228](https://github.com/rust-vmm/vmm-sys-util/pull/228)]: Make `Debug` impl for
+  `FamStructWrapper<T>` print out contents of the flexible array member. This causes
+  `Debug` to only be implemented if `T::Entry: Debug`.
+
 ## v0.12.1
 
 ### Changed

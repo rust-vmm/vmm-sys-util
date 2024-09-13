@@ -21,6 +21,7 @@ use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
 #[cfg(feature = "with-serde")]
 use serde::{ser::SerializeTuple, Serialize, Serializer};
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 #[cfg(feature = "with-serde")]
 use std::marker::PhantomData;
 use std::mem::{self, size_of};
@@ -160,7 +161,6 @@ pub unsafe trait FamStruct {
 /// A wrapper for [`FamStruct`](trait.FamStruct.html).
 ///
 /// It helps in treating a [`FamStruct`](trait.FamStruct.html) similarly to an actual `Vec`.
-#[derive(Debug)]
 pub struct FamStructWrapper<T: Default + FamStruct> {
     // This variable holds the FamStruct structure. We use a `Vec<T>` to make the allocation
     // large enough while still being aligned for `T`. Only the first element of `Vec<T>`
@@ -169,6 +169,19 @@ pub struct FamStructWrapper<T: Default + FamStruct> {
     // be careful to convert the desired capacity of the `FamStructWrapper`
     // from `FamStruct::Entry` to `T` when reserving or releasing memory.
     mem_allocator: Vec<T>,
+}
+
+impl<T> Debug for FamStructWrapper<T>
+where
+    T: Default + FamStruct + Debug,
+    T::Entry: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FamStructWrapper")
+            .field("fam_struct", &self.as_fam_struct_ref())
+            .field("entries", &self.as_fam_struct_ref().as_slice())
+            .finish()
+    }
 }
 
 impl<T: Default + FamStruct> FamStructWrapper<T> {
