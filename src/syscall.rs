@@ -7,6 +7,7 @@ use std::os::raw::c_int;
 
 /// Wrapper to interpret syscall exit codes and provide a rustacean `io::Result`.
 #[derive(Debug)]
+#[cfg_attr(test, derive(Clone, bolero::TypeGenerator))]
 pub struct SyscallReturnCode<T: From<i8> + Eq = c_int>(pub T);
 
 impl<T: From<i8> + Eq> SyscallReturnCode<T> {
