@@ -2,6 +2,12 @@
 
 ## Upcoming
 
+### Added
+
+- [[#230](https://github.com/rust-vmm/vmm-sys-util/pull/230)]: Introduce
+align_downwards! and align_upwards! macro to help address aligning, this
+implementation is faster than div_ceil way and more robust. 
+
 ### Changed
 
 - [[#228](https://github.com/rust-vmm/vmm-sys-util/pull/228)]: Make `Debug` impl for
