@@ -486,7 +486,7 @@ mod tests {
         assert!(register_signal_handler(libc::SIGKILL, handle_signal).is_err());
         assert!(register_signal_handler(libc::SIGSTOP, handle_signal).is_err());
         assert!(register_signal_handler(SIGRTMAX() + 1, handle_signal).is_err());
-        format!("{:?}", register_signal_handler(SIGRTMAX(), handle_signal));
+        assert!(register_signal_handler(SIGRTMAX(), handle_signal).is_ok());
         assert!(register_signal_handler(SIGRTMIN(), handle_signal).is_ok());
         assert!(register_signal_handler(libc::SIGSYS, handle_signal).is_ok());
     }
@@ -508,7 +508,6 @@ mod tests {
 
         let res = killable.kill(SIGRTMAX() + 1);
         assert!(res.is_err());
-        format!("{:?}", res);
 
         unsafe {
             assert!(!SIGNAL_HANDLER_CALLED);
