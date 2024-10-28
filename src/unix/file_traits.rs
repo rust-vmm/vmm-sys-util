@@ -66,6 +66,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&path)
             .unwrap();
         f.write_all(b"Hello, world!").unwrap();
@@ -82,6 +83,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&path)
             .unwrap();
         f.set_len(10).unwrap();

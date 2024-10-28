@@ -216,7 +216,7 @@ type IoctlRequest = c_int;
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 ///
 /// # Safety
@@ -257,7 +257,7 @@ pub unsafe fn ioctl<F: AsRawFd>(fd: &F, req: c_ulong) -> c_int {
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 /// * `arg`: a single value passed to ioctl.
 ///
@@ -303,7 +303,7 @@ pub unsafe fn ioctl_with_val<F: AsRawFd>(fd: &F, req: c_ulong, arg: c_ulong) -> 
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 /// * `arg`: an immutable reference passed to ioctl.
 ///
@@ -325,7 +325,7 @@ pub unsafe fn ioctl_with_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &T) -> c_
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 /// * `arg`: a mutable reference passed to ioctl.
 ///
@@ -347,7 +347,7 @@ pub unsafe fn ioctl_with_mut_ref<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: &mut 
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 /// * `arg`: a raw pointer passed to ioctl.
 ///
@@ -365,7 +365,7 @@ pub unsafe fn ioctl_with_ptr<F: AsRawFd, T>(fd: &F, req: c_ulong, arg: *const T)
 /// # Arguments
 ///
 /// * `fd`: an open file descriptor corresponding to the device on which
-/// to call the ioctl.
+///   to call the ioctl.
 /// * `req`: a device-dependent request code.
 /// * `arg`: a mutable raw pointer passed to ioctl.
 ///

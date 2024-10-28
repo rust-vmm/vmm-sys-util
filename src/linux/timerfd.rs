@@ -47,9 +47,9 @@ impl TimerFd {
     ///
     /// * `dur`: Specify the initial expiration of the timer.
     /// * `interval`: Specify the period for repeated expirations, depending on the
-    /// value passed. If `interval` is not `None`, it represents the period after
-    /// the initial expiration. Otherwise the timer will expire just once. Cancels
-    /// any existing duration and repeating interval.
+    ///   value passed. If `interval` is not `None`, it represents the period after
+    ///   the initial expiration. Otherwise the timer will expire just once. Cancels
+    ///   any existing duration and repeating interval.
     ///
     /// # Examples
     ///

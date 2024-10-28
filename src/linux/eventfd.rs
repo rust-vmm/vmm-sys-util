@@ -29,7 +29,7 @@ impl EventFd {
     /// # Arguments
     ///
     /// * `flag`: The initial value used for creating the `EventFd`.
-    /// Refer to Linux [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
+    ///   Refer to Linux [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
     /// # Examples
     ///
     /// ```
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_write_overflow() {
         let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        evt.write(std::u64::MAX - 1).unwrap();
+        evt.write(u64::MAX - 1).unwrap();
         let r = evt.write(1);
         match r {
             Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
