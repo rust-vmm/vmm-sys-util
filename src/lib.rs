@@ -17,6 +17,7 @@ mod unix;
 #[cfg(unix)]
 pub use crate::unix::*;
 
+pub mod align;
 pub mod errno;
 pub mod fam;
 pub mod metric;
