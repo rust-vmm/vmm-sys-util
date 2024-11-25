@@ -168,8 +168,8 @@ mod tests {
         assert_eq!(system_metrics.dog_metrics.bark.count(), 0);
 
         // Set `std::u64::MAX` value to `eat` metric.
-        dog.eat_more_times(std::u64::MAX);
-        assert_eq!(system_metrics.dog_metrics.eat.count(), std::u64::MAX);
+        dog.eat_more_times(u64::MAX);
+        assert_eq!(system_metrics.dog_metrics.eat.count(), u64::MAX);
         // Check that `add()` wraps around on overflow.
         dog.eat();
         dog.eat();

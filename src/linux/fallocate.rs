@@ -31,7 +31,7 @@ pub enum FallocateMode {
 /// * `file`: the file to be manipulate.
 /// * `mode`: specify the operation to be performed on the given range.
 /// * `keep_size`: file size won't be changed even if `offset` + `len` is greater
-/// than the file size.
+///   than the file size.
 /// * `offset`: the position that manipulates the file from.
 /// * `size`: the bytes of the operation range.
 ///
@@ -62,13 +62,13 @@ pub fn fallocate(
     offset: u64,
     len: u64,
 ) -> Result<()> {
-    let offset = if offset > libc::off64_t::max_value() as u64 {
+    let offset = if offset > libc::off64_t::MAX as u64 {
         return Err(Error::new(libc::EINVAL));
     } else {
         offset as libc::off64_t
     };
 
-    let len = if len > libc::off64_t::max_value() as u64 {
+    let len = if len > libc::off64_t::MAX as u64 {
         return Err(Error::new(libc::EINVAL));
     } else {
         len as libc::off64_t
