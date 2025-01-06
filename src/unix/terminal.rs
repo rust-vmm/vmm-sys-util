@@ -147,7 +147,7 @@ pub unsafe trait Terminal {
 }
 
 // SAFETY: Safe because we return a genuine terminal fd that never changes and shares our lifetime.
-unsafe impl<'a> Terminal for StdinLock<'a> {
+unsafe impl Terminal for StdinLock<'_> {
     fn tty_fd(&self) -> RawFd {
         STDIN_FILENO
     }
