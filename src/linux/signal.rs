@@ -154,7 +154,6 @@ pub fn validate_signal_num(num: c_int) -> errno::Result<()> {
 /// extern "C" fn handle_signal(_: c_int, _: *mut siginfo_t, _: *mut c_void) {}
 /// register_signal_handler(0, handle_signal);
 /// ```
-
 pub fn register_signal_handler(num: c_int, handler: SignalHandler) -> errno::Result<()> {
     validate_signal_num(num)?;
 

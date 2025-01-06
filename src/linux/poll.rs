@@ -155,7 +155,7 @@ impl<T> std::fmt::Debug for PollEvent<'_, T> {
     }
 }
 
-impl<'a, T: PollToken> PollEvent<'a, T> {
+impl<T: PollToken> PollEvent<'_, T> {
     /// Gets the token associated in
     /// [`PollContext::add`](struct.PollContext.html#method.add) with this event.
     pub fn token(&self) -> T {
@@ -246,7 +246,7 @@ impl<T> std::fmt::Debug for PollEvents<'_, T> {
     }
 }
 
-impl<'a, T: PollToken> PollEvents<'a, T> {
+impl<T: PollToken> PollEvents<'_, T> {
     /// Creates owned structure from borrowed [`PollEvents`](struct.PollEvents.html).
     ///
     /// Copies the events to an owned structure so the reference to this (and by extension

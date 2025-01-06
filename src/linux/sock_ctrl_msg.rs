@@ -443,7 +443,7 @@ pub unsafe trait IntoIovec {
 
 // SAFETY: Safe because this slice can not have another mutable reference and it's pointer and
 // size are guaranteed to be valid.
-unsafe impl<'a> IntoIovec for &'a [u8] {
+unsafe impl IntoIovec for &[u8] {
     // Clippy false positive: https://github.com/rust-lang/rust-clippy/issues/3480
     #[allow(clippy::useless_asref)]
     fn as_ptr(&self) -> *const c_void {
