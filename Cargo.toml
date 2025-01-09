@@ -21,6 +21,9 @@ libc = "0.2.39"
 serde = { version = "1.0.27", optional = true }
 serde_derive = { version = "1.0.27", optional = true }
 
+[target.'cfg(not(target_has_atomic = "u64"))'.dependencies]
+portable-atomic = "1"
+
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 bitflags = "1.0"
 
