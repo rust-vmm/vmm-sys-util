@@ -525,12 +525,6 @@ impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
     }
 }
 
-impl<T: Default + FamStruct> From<Vec<T>> for FamStructWrapper<T> {
-    fn from(vec: Vec<T>) -> Self {
-        FamStructWrapper { mem_allocator: vec }
-    }
-}
-
 #[cfg(feature = "with-serde")]
 impl<T: Default + FamStruct + Serialize> Serialize for FamStructWrapper<T>
 where
