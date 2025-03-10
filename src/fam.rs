@@ -249,6 +249,23 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
         Ok(FamStructWrapper { mem_allocator })
     }
 
+    /// Constructs a FamStructWrapper with an empty flexible array member
+    /// from the given FamStruct header.
+    ///
+    /// # Errors
+    ///
+    /// If the length stored in the header is not 0, returns [`Error::SizeLimitExceeded`]
+    pub fn from_header(header: T) -> Result<FamStructWrapper<T>, Error> {
+        if header.len() != 0 {
+            return Err(Error::SizeLimitExceeded);
+        }
+
+        // SAFETY: We are passing an array of length 1, which corresponds to exactly
+        // the header. The length inside the header is set to 0, and there are also no
+        // further elements in the vector that would constitute any T::Entry.
+        unsafe { Ok(Self::from_raw(vec![header])) }
+    }
+
     /// Create a new FamStructWrapper from a slice of elements.
     ///
     /// # Arguments
@@ -963,6 +980,21 @@ mod tests {
         }
 
         assert!(adapter == adapter.clone());
+    }
+
+    #[test]
+    fn test_from_header() {
+        let header = MockFamStruct::default();
+        let wrapper = MockFamStructWrapper::from_header(header).unwrap();
+        assert_eq!(wrapper.len(), 0);
+        assert_eq!(wrapper.as_fam_struct_ref().len, 0);
+
+        let header = MockFamStruct {
+            len: 100,
+            ..Default::default()
+        };
+        let error = MockFamStructWrapper::from_header(header);
+        assert!(matches!(error, Err(Error::SizeLimitExceeded)));
     }
 
     #[test]
