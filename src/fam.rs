@@ -757,7 +757,7 @@ mod tests {
     fn test_invalid_type_conversion() {
         let mut adapter = MockFamStructWrapperU8::new(10).unwrap();
         assert!(matches!(
-            adapter.set_len(0xffff_ffff_ffff_ff00),
+            adapter.set_len(usize::MAX & !0xff),
             Err(Error::SizeLimitExceeded)
         ));
     }

@@ -479,15 +479,15 @@ mod tests {
         if size_of::<RawFd>() == 4 {
             assert_eq!(
                 CMSG_SPACE!(2 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>()
+                size_of::<cmsghdr>() + size_of::<c_long>() * 2
             );
             assert_eq!(
                 CMSG_SPACE!(3 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 2
+                size_of::<cmsghdr>() + size_of::<c_long>() * 3
             );
             assert_eq!(
                 CMSG_SPACE!(4 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 2
+                size_of::<cmsghdr>() + size_of::<c_long>() * 4
             );
         } else if size_of::<RawFd>() == 8 {
             assert_eq!(
