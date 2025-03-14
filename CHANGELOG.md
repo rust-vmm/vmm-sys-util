@@ -14,6 +14,10 @@ implementation is faster than div_ceil way and more robust.
   `FamStructWrapper<T>` print out contents of the flexible array member. This causes
   `Debug` to only be implemented if `T::Entry: Debug`.
 
+### Removed
+- [[#235](https://github.com/rust-vmm/vmm-sys-util/pull/235)]: Removed `impl
+  From<Vec<T>> for FamStructWrapper<T>`, as this was unsound.
+
 ## v0.12.1
 
 ### Changed
