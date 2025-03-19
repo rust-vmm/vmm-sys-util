@@ -2,6 +2,8 @@
 
 ## Upcoming
 
+## v0.13.0
+
 ### Added
 
 - [[#230](https://github.com/rust-vmm/vmm-sys-util/pull/230)]: Introduce
