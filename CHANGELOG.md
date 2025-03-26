@@ -7,6 +7,8 @@
 - [[#230](https://github.com/rust-vmm/vmm-sys-util/pull/230)]: Introduce
 align_downwards! and align_upwards! macro to help address aligning, this
 implementation is faster than div_ceil way and more robust. 
+- [[#236](https://github.com/rust-vmm/vmm-sys-util/pull/236)]: Add a utility
+function for constructing an empty FamStructWrapper with a given header.
 
 ### Changed
 
