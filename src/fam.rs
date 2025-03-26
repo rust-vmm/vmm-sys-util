@@ -303,6 +303,9 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     /// This function is unsafe because the caller needs to ensure that the raw content is
     /// correctly layed out.
     pub unsafe fn from_raw(content: Vec<T>) -> Self {
+        debug_assert_ne!(content.len(), 0);
+        debug_assert!(content[0].len() <= Self::fam_len(content.len()));
+
         FamStructWrapper {
             mem_allocator: content,
         }
@@ -539,12 +542,6 @@ impl<T: Default + FamStruct> Clone for FamStructWrapper<T> {
             wrapper_entries.copy_from_slice(self.as_slice());
         }
         adapter
-    }
-}
-
-impl<T: Default + FamStruct> From<Vec<T>> for FamStructWrapper<T> {
-    fn from(vec: Vec<T>) -> Self {
-        FamStructWrapper { mem_allocator: vec }
     }
 }
 
