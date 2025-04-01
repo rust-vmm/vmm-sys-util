@@ -30,10 +30,10 @@ pub const fn ioctl_expr(
     nr: c_uint,
     size: c_uint,
 ) -> ::std::os::raw::c_ulong {
-    (dir << crate::ioctl::_IOC_DIRSHIFT
-        | ty << crate::ioctl::_IOC_TYPESHIFT
-        | nr << crate::ioctl::_IOC_NRSHIFT
-        | size << crate::ioctl::_IOC_SIZESHIFT) as ::std::os::raw::c_ulong
+    ((dir << crate::ioctl::_IOC_DIRSHIFT)
+        | (ty << crate::ioctl::_IOC_TYPESHIFT)
+        | (nr << crate::ioctl::_IOC_NRSHIFT)
+        | (size << crate::ioctl::_IOC_SIZESHIFT)) as ::std::os::raw::c_ulong
 }
 
 /// Declare a function that returns an ioctl number.
