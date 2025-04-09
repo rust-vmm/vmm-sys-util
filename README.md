@@ -14,6 +14,7 @@ with files, event file descriptors, ioctls and others.
 **Platforms**:
 - x86_64
 - aarch64
+- riscv64
 
 **Operating Systems**:
 - Linux
