@@ -11,7 +11,12 @@
 //! of these components can choose what metrics they’re interested in and also
 //! can add their own custom metrics without the need to maintain forks.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_has_atomic = "64")]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
+#[cfg(not(target_has_atomic = "64"))]
+use portable_atomic::AtomicU64;
 
 /// Abstraction over the common metric operations.
 ///
@@ -63,8 +68,12 @@ impl Metric for AtomicU64 {
 mod tests {
     use crate::metric::Metric;
 
+    #[cfg(target_has_atomic = "64")]
     use std::sync::atomic::AtomicU64;
     use std::sync::Arc;
+
+    #[cfg(not(target_has_atomic = "64"))]
+    use portable_atomic::AtomicU64;
 
     struct Dog<T: DogEvents> {
         metrics: T,
