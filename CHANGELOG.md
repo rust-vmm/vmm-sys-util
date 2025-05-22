@@ -2,6 +2,11 @@
 
 ## Upcoming
 
+### Added
+
+- [[#240](https://github.com/rust-vmm/vmm-sys-util/pull/240)]: Remove
+`PartialEq` trait constraint on `Entry` in FAM module.
+
 ## v0.13.0
 
 ### Added
