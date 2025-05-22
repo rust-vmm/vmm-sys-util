@@ -126,7 +126,7 @@ impl fmt::Display for Error {
 #[allow(clippy::len_without_is_empty)]
 pub unsafe trait FamStruct {
     /// The type of the FAM entries
-    type Entry: PartialEq + Copy;
+    type Entry: Copy;
 
     /// Get the FAM length
     ///
@@ -505,7 +505,10 @@ impl<T: Default + FamStruct> FamStructWrapper<T> {
     }
 }
 
-impl<T: Default + FamStruct + PartialEq> PartialEq for FamStructWrapper<T> {
+impl<T: Default + FamStruct + PartialEq> PartialEq for FamStructWrapper<T>
+where
+    T::Entry: PartialEq,
+{
     fn eq(&self, other: &FamStructWrapper<T>) -> bool {
         self.as_fam_struct_ref() == other.as_fam_struct_ref() && self.as_slice() == other.as_slice()
     }
