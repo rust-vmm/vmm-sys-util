@@ -24,3 +24,9 @@ pub mod metric;
 pub mod rand;
 pub mod syscall;
 pub mod tempfile;
+/// A cross-platform event notification primitive.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub type EventNotifier = crate::linux::eventfd::EventFd;
+/// A cross-platform event notification primitive.
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+pub type EventNotifier = crate::unix::pipefd::PipeFd;
