@@ -378,7 +378,7 @@ impl WatchingEvents {
 /// use vmm_sys_util::eventfd::EventFd;
 /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
 ///
-/// let evt = EventFd::new(0).unwrap();
+/// let mut evt = EventFd::new(0).unwrap();
 /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
 /// let events = EpollEvents::new();
 ///
@@ -608,7 +608,7 @@ impl<T: PollToken> EpollContext<T> {
     /// use vmm_sys_util::eventfd::EventFd;
     /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
     ///
-    /// let evt = EventFd::new(0).unwrap();
+    /// let mut evt = EventFd::new(0).unwrap();
     /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
     /// let events = EpollEvents::new();
     ///
@@ -642,7 +642,7 @@ impl<T: PollToken> EpollContext<T> {
     /// use vmm_sys_util::eventfd::EventFd;
     /// use vmm_sys_util::poll::{EpollContext, EpollEvents};
     ///
-    /// let evt = EventFd::new(0).unwrap();
+    /// let mut evt = EventFd::new(0).unwrap();
     /// let ctx: EpollContext<u32> = EpollContext::new().unwrap();
     /// let events = EpollEvents::new();
     ///
@@ -722,8 +722,8 @@ impl<T: PollToken> IntoRawFd for EpollContext<T> {
 /// # use vmm_sys_util::errno::Result;
 /// # use vmm_sys_util::eventfd::EventFd;
 /// # use vmm_sys_util::poll::{PollContext, PollEvents};
-/// let evt1 = EventFd::new(0).unwrap();
-/// let evt2 = EventFd::new(0).unwrap();
+/// let mut evt1 = EventFd::new(0).unwrap();
+/// let mut evt2 = EventFd::new(0).unwrap();
 /// evt2.write(1).unwrap();
 ///
 /// let ctx: PollContext<u32> = PollContext::new().unwrap();
@@ -948,8 +948,8 @@ mod tests {
 
     #[test]
     fn test_poll_context() {
-        let evt1 = EventFd::new(0).unwrap();
-        let evt2 = EventFd::new(0).unwrap();
+        let mut evt1 = EventFd::new(0).unwrap();
+        let mut evt2 = EventFd::new(0).unwrap();
         evt1.write(1).unwrap();
         evt2.write(1).unwrap();
         let ctx: PollContext<u32> = PollContext::new().unwrap();
@@ -982,7 +982,7 @@ mod tests {
         let ctx: PollContext<usize> = PollContext::new().unwrap();
         let mut evts = Vec::with_capacity(EVT_COUNT);
         for i in 0..EVT_COUNT {
-            let evt = EventFd::new(0).unwrap();
+            let mut evt = EventFd::new(0).unwrap();
             evt.write(1).unwrap();
             ctx.add(&evt, i).unwrap();
             evts.push(evt);

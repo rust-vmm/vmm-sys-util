@@ -373,7 +373,7 @@ mod tests {
 
         // Let's test different scenarios for `epoll_ctl()` and `epoll_wait()` functionality.
 
-        let event_fd_1 = EventFd::new(libc::EFD_NONBLOCK).unwrap();
+        let mut event_fd_1 = EventFd::new(libc::EFD_NONBLOCK).unwrap();
         // For EPOLLOUT to be available it is enough only to be possible to write a value of
         // at least 1 to the eventfd counter without blocking.
         // If we write a value greater than 0 to this counter, the fd will be available for
@@ -394,7 +394,7 @@ mod tests {
             .ctl(ControlOperation::Add, event_fd_1.as_raw_fd(), event_1)
             .is_err());
 
-        let event_fd_2 = EventFd::new(libc::EFD_NONBLOCK).unwrap();
+        let mut event_fd_2 = EventFd::new(libc::EFD_NONBLOCK).unwrap();
         event_fd_2.write(1).unwrap();
         assert!(epoll
             .ctl(

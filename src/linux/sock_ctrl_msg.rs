@@ -310,7 +310,7 @@ unsafe fn raw_recvmsg(
 /// # use libc::{c_void, iovec};
 ///
 /// let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
-/// let evt = EventFd::new(0).expect("failed to create eventfd");
+/// let mut evt = EventFd::new(0).expect("failed to create eventfd");
 ///
 /// let write_count = s1
 ///     .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
@@ -535,7 +535,7 @@ mod tests {
     fn send_recv_only_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let mut evt = EventFd::new(0).expect("failed to create eventfd");
         let write_count = s1
             .send_with_fd([].as_ref(), evt.as_raw_fd())
             .expect("failed to send fd");
@@ -562,7 +562,7 @@ mod tests {
     fn send_recv_with_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let mut evt = EventFd::new(0).expect("failed to create eventfd");
         let write_count = s1
             .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
             .expect("failed to send fd");
