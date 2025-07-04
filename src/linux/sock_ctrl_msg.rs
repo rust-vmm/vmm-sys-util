@@ -16,50 +16,10 @@ use std::ptr::{copy_nonoverlapping, null_mut, write_unaligned};
 
 use crate::errno::{Error, Result};
 use libc::{
-    c_long, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
+    c_uint, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, CMSG_DATA, CMSG_LEN, CMSG_NXTHDR,
+    CMSG_SPACE, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
 };
 use std::os::raw::c_int;
-
-// Each of the following macros performs the same function as their C counterparts. They are each
-// macros because they are used to size statically allocated arrays.
-
-macro_rules! CMSG_ALIGN {
-    ($len:expr) => {
-        (($len) as usize + size_of::<c_long>() - 1) & !(size_of::<c_long>() - 1)
-    };
-}
-
-macro_rules! CMSG_SPACE {
-    ($len:expr) => {
-        size_of::<cmsghdr>() + CMSG_ALIGN!($len)
-    };
-}
-
-// This function (macro in the C version) is not used in any compile time constant slots, so is just
-// an ordinary function. The returned pointer is hard coded to be RawFd because that's all that this
-// module supports.
-#[allow(non_snake_case)]
-#[inline(always)]
-fn CMSG_DATA(cmsg_buffer: *mut cmsghdr) -> *mut RawFd {
-    // Essentially returns a pointer to just past the header.
-    cmsg_buffer.wrapping_offset(1) as *mut RawFd
-}
-
-#[cfg(not(target_env = "musl"))]
-macro_rules! CMSG_LEN {
-    ($len:expr) => {
-        size_of::<cmsghdr>() + ($len)
-    };
-}
-
-#[cfg(target_env = "musl")]
-macro_rules! CMSG_LEN {
-    ($len:expr) => {{
-        let sz = size_of::<cmsghdr>() + ($len);
-        assert!(sz <= (std::u32::MAX as usize));
-        sz as u32
-    }};
-}
 
 #[cfg(not(target_env = "musl"))]
 fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
@@ -96,23 +56,9 @@ fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
     msg.msg_controllen = cmsg_capacity as u32;
 }
 
-// This function is like CMSG_NEXT, but safer because it reads only from references, although it
-// does some pointer arithmetic on cmsg_ptr.
-#[allow(clippy::cast_ptr_alignment, clippy::unnecessary_cast)]
-fn get_next_cmsg(msghdr: &msghdr, cmsg: &cmsghdr, cmsg_ptr: *mut cmsghdr) -> *mut cmsghdr {
-    let next_cmsg = (cmsg_ptr as *mut u8).wrapping_add(CMSG_ALIGN!(cmsg.cmsg_len)) as *mut cmsghdr;
-    if next_cmsg
-        .wrapping_offset(1)
-        .wrapping_sub(msghdr.msg_control as usize) as usize
-        > msghdr.msg_controllen as usize
-    {
-        null_mut()
-    } else {
-        next_cmsg
-    }
-}
-
-const CMSG_BUFFER_INLINE_CAPACITY: usize = CMSG_SPACE!(size_of::<RawFd>() * 32);
+// SAFETY: CMSG_SPACE is a pure calculation. The input value will not exceed the range of c_uint
+const CMSG_BUFFER_INLINE_CAPACITY: usize =
+    unsafe { CMSG_SPACE(size_of::<RawFd>() as u32 * 32) as usize };
 
 enum CmsgBuffer {
     Inline([u64; CMSG_BUFFER_INLINE_CAPACITY.div_ceil(8)]),
@@ -151,7 +97,14 @@ impl CmsgBuffer {
 }
 
 fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Result<usize> {
-    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(out_fds));
+    // SAFETY: CMSG_SPACE is a pure calculation. We ensure that the input value does not exceed the range of c_uint
+    let cmsg_capacity = unsafe {
+        CMSG_SPACE(
+            size_of_val(out_fds)
+                .try_into()
+                .map_err(|_| Error::new(libc::E2BIG))?,
+        ) as usize
+    };
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
 
     let mut iovecs = Vec::with_capacity(out_data.len());
@@ -165,8 +118,19 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
     let mut msg = new_msghdr(&mut iovecs);
 
     if !out_fds.is_empty() {
+        // SAFETY: We ensure that the input value does not exceed the range of c_uint. c_uint to usize is a safe conversion
+        let cmsg_len = unsafe {
+            CMSG_LEN(
+                size_of_val(out_fds)
+                    .try_into()
+                    .map_err(|_| Error::new(libc::E2BIG))?,
+            )
+        };
         let cmsg = cmsghdr {
-            cmsg_len: CMSG_LEN!(std::mem::size_of_val(out_fds)),
+            #[cfg(not(target_env = "musl"))]
+            cmsg_len: cmsg_len as usize,
+            #[cfg(target_env = "musl")]
+            cmsg_len: cmsg_len,
             cmsg_level: SOL_SOCKET,
             cmsg_type: SCM_RIGHTS,
             #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
@@ -180,7 +144,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
             // file descriptors.
             copy_nonoverlapping(
                 out_fds.as_ptr(),
-                CMSG_DATA(cmsg_buffer.as_mut_ptr()),
+                CMSG_DATA(cmsg_buffer.as_mut_ptr()).cast(),
                 out_fds.len(),
             );
         }
@@ -206,7 +170,7 @@ unsafe fn raw_recvmsg(
     iovecs: &mut [iovec],
     in_fds: &mut [RawFd],
 ) -> Result<(usize, usize)> {
-    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(in_fds));
+    let cmsg_capacity = CMSG_SPACE(size_of_val(in_fds) as c_uint) as usize;
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
     let mut msg = new_msghdr(iovecs);
 
@@ -242,7 +206,8 @@ unsafe fn raw_recvmsg(
         // read.
         let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fds_count: usize = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
+            let fds_count: usize =
+                ((cmsg.cmsg_len - CMSG_LEN(0) as usize) as usize) / size_of::<RawFd>();
             // The sender can transmit more data than we can buffer. If a message is too long to
             // fit in the supplied buffer, excess bytes may be discarded depending on the type of
             // socket the message is received from.
@@ -254,7 +219,7 @@ unsafe fn raw_recvmsg(
                 // data must be dropped to insufficient buffer space for returning them to outer
                 // scope. This might be a sign of incorrect protocol communication.
                 for fd_offset in 0..fds_count {
-                    let raw_fds_ptr = CMSG_DATA(cmsg_ptr);
+                    let raw_fds_ptr: *mut RawFd = CMSG_DATA(cmsg_ptr).cast();
                     // The cmsg_ptr is valid here because is checked at the beginning of the
                     // loop and it is assured to have `fds_count` fds available.
                     let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset)) as c_int;
@@ -264,7 +229,7 @@ unsafe fn raw_recvmsg(
                 // Safe because `cmsg_ptr` is checked against null and we copy from `cmesg_buffer` to
                 // `in_fds` according to their current capacity.
                 copy_nonoverlapping(
-                    CMSG_DATA(cmsg_ptr),
+                    CMSG_DATA(cmsg_ptr).cast(),
                     in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
                         .as_mut_ptr(),
                     fds_to_be_copied_count,
@@ -285,7 +250,7 @@ unsafe fn raw_recvmsg(
             return Err(Error::new(libc::ENOBUFS));
         }
 
-        cmsg_ptr = get_next_cmsg(&msg, &cmsg, cmsg_ptr);
+        cmsg_ptr = CMSG_NXTHDR(&msg, &cmsg);
     }
 
     Ok((total_read as usize, copied_fds_count))
@@ -462,48 +427,8 @@ mod tests {
     use std::io::{pipe, Read};
 
     use std::io::Write;
-    use std::mem::size_of;
-    use std::os::raw::c_long;
     use std::os::unix::net::UnixDatagram;
     use std::slice::from_raw_parts;
-
-    use libc::cmsghdr;
-
-    #[test]
-    fn buffer_len() {
-        assert_eq!(CMSG_SPACE!(0), size_of::<cmsghdr>());
-        assert_eq!(
-            CMSG_SPACE!(size_of::<RawFd>()),
-            size_of::<cmsghdr>() + size_of::<c_long>()
-        );
-        if size_of::<RawFd>() == 4 {
-            assert_eq!(
-                CMSG_SPACE!(2 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>()
-            );
-            assert_eq!(
-                CMSG_SPACE!(3 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 2
-            );
-            assert_eq!(
-                CMSG_SPACE!(4 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 2
-            );
-        } else if size_of::<RawFd>() == 8 {
-            assert_eq!(
-                CMSG_SPACE!(2 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 2
-            );
-            assert_eq!(
-                CMSG_SPACE!(3 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 3
-            );
-            assert_eq!(
-                CMSG_SPACE!(4 * size_of::<RawFd>()),
-                size_of::<cmsghdr>() + size_of::<c_long>() * 4
-            );
-        }
-    }
 
     #[test]
     fn send_recv_no_fd() {
