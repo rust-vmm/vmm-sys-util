@@ -27,7 +27,13 @@ fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
         msg_name: null_mut(),
         msg_namelen: 0,
         msg_iov: iovecs.as_mut_ptr(),
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         msg_iovlen: iovecs.len(),
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
+        msg_iovlen: iovecs
+            .len()
+            .try_into()
+            .expect("iovecs.len() exceeds i32 range"),
         msg_control: null_mut(),
         msg_controllen: 0,
         msg_flags: 0,
@@ -45,12 +51,18 @@ fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
     msg
 }
 
-#[cfg(not(target_env = "musl"))]
+#[cfg(all(
+    not(target_env = "musl"),
+    any(target_os = "linux", target_os = "android")
+))]
 fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
     msg.msg_controllen = cmsg_capacity;
 }
 
-#[cfg(target_env = "musl")]
+#[cfg(any(
+    target_env = "musl",
+    not(any(target_os = "linux", target_os = "android"))
+))]
 fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
     assert!(cmsg_capacity <= (std::u32::MAX as usize));
     msg.msg_controllen = cmsg_capacity as u32;
@@ -127,9 +139,15 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
             )
         };
         let cmsg = cmsghdr {
-            #[cfg(not(target_env = "musl"))]
+            #[cfg(all(
+                any(target_os = "linux", target_os = "android"),
+                not(target_env = "musl")
+            ))]
             cmsg_len: cmsg_len as usize,
-            #[cfg(target_env = "musl")]
+            #[cfg(any(
+                not(any(target_os = "linux", target_os = "android")),
+                target_env = "musl"
+            ))]
             cmsg_len: cmsg_len,
             cmsg_level: SOL_SOCKET,
             cmsg_type: SCM_RIGHTS,
@@ -207,7 +225,7 @@ unsafe fn raw_recvmsg(
         let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
             let fds_count: usize =
-                ((cmsg.cmsg_len - CMSG_LEN(0) as usize) as usize) / size_of::<RawFd>();
+                (cmsg.cmsg_len as usize - CMSG_LEN(0) as usize) / size_of::<RawFd>();
             // The sender can transmit more data than we can buffer. If a message is too long to
             // fit in the supplied buffer, excess bytes may be discarded depending on the type of
             // socket the message is received from.
