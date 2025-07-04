@@ -459,7 +459,7 @@ unsafe impl IntoIovec for &[u8] {
 mod tests {
     #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
-    use crate::eventfd::EventFd;
+    use std::io::{pipe, Read};
 
     use std::io::Write;
     use std::mem::size_of;
@@ -535,9 +535,9 @@ mod tests {
     fn send_recv_only_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let (mut evt_consumer, evt_notifier) = pipe().expect("failed to create pipe");
         let write_count = s1
-            .send_with_fd([].as_ref(), evt.as_raw_fd())
+            .send_with_fd([].as_ref(), evt_notifier.as_raw_fd())
             .expect("failed to send fd");
 
         assert_eq!(write_count, 0);
@@ -550,21 +550,25 @@ mod tests {
         assert!(file.as_raw_fd() >= 0);
         assert_ne!(file.as_raw_fd(), s1.as_raw_fd());
         assert_ne!(file.as_raw_fd(), s2.as_raw_fd());
-        assert_ne!(file.as_raw_fd(), evt.as_raw_fd());
+        assert_ne!(file.as_raw_fd(), evt_notifier.as_raw_fd());
 
         file.write_all(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
             .expect("failed to write to sent fd");
 
-        assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        evt_consumer
+            .read_exact(buf.as_mut_slice())
+            .expect("Failed to read from PipeReader");
+        assert_eq!(u64::from_ne_bytes(buf), 1203);
     }
 
     #[test]
     fn send_recv_with_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let (mut evt_consumer, evt_notifier) = pipe().expect("failed to create pipe");
         let write_count = s1
-            .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
+            .send_with_fds(&[[237].as_ref()], &[evt_notifier.as_raw_fd()])
             .expect("failed to send fd");
 
         assert_eq!(write_count, 1);
@@ -586,14 +590,18 @@ mod tests {
         assert!(files[0] >= 0);
         assert_ne!(files[0], s1.as_raw_fd());
         assert_ne!(files[0], s2.as_raw_fd());
-        assert_ne!(files[0], evt.as_raw_fd());
+        assert_ne!(files[0], evt_notifier.as_raw_fd());
 
         let mut file = unsafe { File::from_raw_fd(files[0]) };
 
         file.write_all(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
             .expect("failed to write to sent fd");
 
-        assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        evt_consumer
+            .read_exact(buf.as_mut_slice())
+            .expect("Failed to read from PipeReader");
+        assert_eq!(u64::from_ne_bytes(buf), 1203);
     }
 
     #[test]
@@ -602,18 +610,18 @@ mod tests {
     fn send_more_recv_less1() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt1 = EventFd::new(0).expect("failed to create eventfd");
-        let evt2 = EventFd::new(0).expect("failed to create eventfd");
-        let evt3 = EventFd::new(0).expect("failed to create eventfd");
-        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let (_, evt_notifier1) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier2) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier3) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier4) = pipe().expect("failed to create pipe");
         let write_count = s1
             .send_with_fds(
                 &[[237].as_ref()],
                 &[
-                    evt1.as_raw_fd(),
-                    evt2.as_raw_fd(),
-                    evt3.as_raw_fd(),
-                    evt4.as_raw_fd(),
+                    evt_notifier1.as_raw_fd(),
+                    evt_notifier2.as_raw_fd(),
+                    evt_notifier3.as_raw_fd(),
+                    evt_notifier4.as_raw_fd(),
                 ],
             )
             .expect("failed to send fd");
@@ -635,18 +643,18 @@ mod tests {
     fn send_more_recv_less2() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt1 = EventFd::new(0).expect("failed to create eventfd");
-        let evt2 = EventFd::new(0).expect("failed to create eventfd");
-        let evt3 = EventFd::new(0).expect("failed to create eventfd");
-        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let (_, evt_notifier1) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier2) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier3) = pipe().expect("failed to create pipe");
+        let (_, evt_notifier4) = pipe().expect("failed to create pipe");
         let write_count = s1
             .send_with_fds(
                 &[[237].as_ref()],
                 &[
-                    evt1.as_raw_fd(),
-                    evt2.as_raw_fd(),
-                    evt3.as_raw_fd(),
-                    evt4.as_raw_fd(),
+                    evt_notifier1.as_raw_fd(),
+                    evt_notifier2.as_raw_fd(),
+                    evt_notifier3.as_raw_fd(),
+                    evt_notifier4.as_raw_fd(),
                 ],
             )
             .expect("failed to send fd");
