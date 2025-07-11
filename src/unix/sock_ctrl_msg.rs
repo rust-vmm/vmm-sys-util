@@ -16,50 +16,10 @@ use std::ptr::{copy_nonoverlapping, null_mut, write_unaligned};
 
 use crate::errno::{Error, Result};
 use libc::{
-    c_long, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
+    c_uint, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, CMSG_DATA, CMSG_LEN, CMSG_NXTHDR,
+    CMSG_SPACE, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
 };
 use std::os::raw::c_int;
-
-// Each of the following macros performs the same function as their C counterparts. They are each
-// macros because they are used to size statically allocated arrays.
-
-macro_rules! CMSG_ALIGN {
-    ($len:expr) => {
-        (($len) as usize + size_of::<c_long>() - 1) & !(size_of::<c_long>() - 1)
-    };
-}
-
-macro_rules! CMSG_SPACE {
-    ($len:expr) => {
-        size_of::<cmsghdr>() + CMSG_ALIGN!($len)
-    };
-}
-
-// This function (macro in the C version) is not used in any compile time constant slots, so is just
-// an ordinary function. The returned pointer is hard coded to be RawFd because that's all that this
-// module supports.
-#[allow(non_snake_case)]
-#[inline(always)]
-fn CMSG_DATA(cmsg_buffer: *mut cmsghdr) -> *mut RawFd {
-    // Essentially returns a pointer to just past the header.
-    cmsg_buffer.wrapping_offset(1) as *mut RawFd
-}
-
-#[cfg(not(target_env = "musl"))]
-macro_rules! CMSG_LEN {
-    ($len:expr) => {
-        size_of::<cmsghdr>() + ($len)
-    };
-}
-
-#[cfg(target_env = "musl")]
-macro_rules! CMSG_LEN {
-    ($len:expr) => {{
-        let sz = size_of::<cmsghdr>() + ($len);
-        assert!(sz <= (std::u32::MAX as usize));
-        sz as u32
-    }};
-}
 
 #[cfg(not(target_env = "musl"))]
 fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
@@ -67,7 +27,13 @@ fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
         msg_name: null_mut(),
         msg_namelen: 0,
         msg_iov: iovecs.as_mut_ptr(),
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         msg_iovlen: iovecs.len(),
+        #[cfg(target_os = "macos")]
+        msg_iovlen: iovecs
+            .len()
+            .try_into()
+            .expect("iovecs.len() exceeds i32 range"),
         msg_control: null_mut(),
         msg_controllen: 0,
         msg_flags: 0,
@@ -85,34 +51,20 @@ fn new_msghdr(iovecs: &mut [iovec]) -> msghdr {
     msg
 }
 
-#[cfg(not(target_env = "musl"))]
+#[cfg(not(any(target_env = "musl", target_os = "macos")))]
 fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
     msg.msg_controllen = cmsg_capacity;
 }
 
-#[cfg(target_env = "musl")]
+#[cfg(any(target_env = "musl", target_os = "macos"))]
 fn set_msg_controllen(msg: &mut msghdr, cmsg_capacity: usize) {
     assert!(cmsg_capacity <= (std::u32::MAX as usize));
     msg.msg_controllen = cmsg_capacity as u32;
 }
 
-// This function is like CMSG_NEXT, but safer because it reads only from references, although it
-// does some pointer arithmetic on cmsg_ptr.
-#[allow(clippy::cast_ptr_alignment, clippy::unnecessary_cast)]
-fn get_next_cmsg(msghdr: &msghdr, cmsg: &cmsghdr, cmsg_ptr: *mut cmsghdr) -> *mut cmsghdr {
-    let next_cmsg = (cmsg_ptr as *mut u8).wrapping_add(CMSG_ALIGN!(cmsg.cmsg_len)) as *mut cmsghdr;
-    if next_cmsg
-        .wrapping_offset(1)
-        .wrapping_sub(msghdr.msg_control as usize) as usize
-        > msghdr.msg_controllen as usize
-    {
-        null_mut()
-    } else {
-        next_cmsg
-    }
-}
-
-const CMSG_BUFFER_INLINE_CAPACITY: usize = CMSG_SPACE!(size_of::<RawFd>() * 32);
+// SAFETY: CMSG_SPACE is a pure calculation. The input value will not exceed the range of c_uint
+const CMSG_BUFFER_INLINE_CAPACITY: usize =
+    unsafe { CMSG_SPACE(size_of::<RawFd>() as u32 * 32) as usize };
 
 enum CmsgBuffer {
     Inline([u64; CMSG_BUFFER_INLINE_CAPACITY.div_ceil(8)]),
@@ -151,7 +103,14 @@ impl CmsgBuffer {
 }
 
 fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Result<usize> {
-    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(out_fds));
+    // SAFETY: CMSG_SPACE is a pure calculation. We ensure that the input value does not exceed the range of c_uint
+    let cmsg_capacity = unsafe {
+        CMSG_SPACE(
+            size_of_val(out_fds)
+                .try_into()
+                .expect("size_of_val(out_fds) exceeds u32 range"),
+        ) as usize
+    };
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
 
     let mut iovecs = Vec::with_capacity(out_data.len());
@@ -166,7 +125,12 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
 
     if !out_fds.is_empty() {
         let cmsg = cmsghdr {
-            cmsg_len: CMSG_LEN!(std::mem::size_of_val(out_fds)),
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            // SAFETY: We ensure that the input value does not exceed the range of c_uint.
+            cmsg_len: unsafe { CMSG_LEN(size_of_val(out_fds).try_into().expect("size_of_value(out_fds) exceeds u32 range")) as usize },
+            #[cfg(target_os = "macos")]
+            // SAFETY: We ensure that the input value does not exceed the range of c_uint.
+            cmsg_len: unsafe { CMSG_LEN(size_of_val(out_fds).try_into().expect("size_of_value(out_fds) exceeds u32 range")) },
             cmsg_level: SOL_SOCKET,
             cmsg_type: SCM_RIGHTS,
             #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
@@ -180,7 +144,7 @@ fn raw_sendmsg<D: IntoIovec>(fd: RawFd, out_data: &[D], out_fds: &[RawFd]) -> Re
             // file descriptors.
             copy_nonoverlapping(
                 out_fds.as_ptr(),
-                CMSG_DATA(cmsg_buffer.as_mut_ptr()),
+                CMSG_DATA(cmsg_buffer.as_mut_ptr()).cast(),
                 out_fds.len(),
             );
         }
@@ -206,7 +170,7 @@ unsafe fn raw_recvmsg(
     iovecs: &mut [iovec],
     in_fds: &mut [RawFd],
 ) -> Result<(usize, usize)> {
-    let cmsg_capacity = CMSG_SPACE!(std::mem::size_of_val(in_fds));
+    let cmsg_capacity = CMSG_SPACE(size_of_val(in_fds) as c_uint) as usize;
     let mut cmsg_buffer = CmsgBuffer::with_capacity(cmsg_capacity);
     let mut msg = new_msghdr(iovecs);
 
@@ -242,7 +206,8 @@ unsafe fn raw_recvmsg(
         // read.
         let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fds_count: usize = ((cmsg.cmsg_len - CMSG_LEN!(0)) as usize) / size_of::<RawFd>();
+            let fds_count: usize =
+                ((cmsg.cmsg_len as usize - CMSG_LEN(0) as usize) as usize) / size_of::<RawFd>();
             // The sender can transmit more data than we can buffer. If a message is too long to
             // fit in the supplied buffer, excess bytes may be discarded depending on the type of
             // socket the message is received from.
@@ -253,8 +218,8 @@ unsafe fn raw_recvmsg(
                 // alignment. If these fds can not be stored in `in_fds` buffer, then all the control
                 // data must be dropped to insufficient buffer space for returning them to outer
                 // scope. This might be a sign of incorrect protocol communication.
-                for fd_offset in 0..fds_count {
-                    let raw_fds_ptr = CMSG_DATA(cmsg_ptr);
+                for fd_offset in 0..fds_to_be_copied_count {
+                    let raw_fds_ptr: *mut RawFd = CMSG_DATA(cmsg_ptr).cast();
                     // The cmsg_ptr is valid here because is checked at the beginning of the
                     // loop and it is assured to have `fds_count` fds available.
                     let raw_fd = *(raw_fds_ptr.wrapping_add(fd_offset)) as c_int;
@@ -264,7 +229,7 @@ unsafe fn raw_recvmsg(
                 // Safe because `cmsg_ptr` is checked against null and we copy from `cmesg_buffer` to
                 // `in_fds` according to their current capacity.
                 copy_nonoverlapping(
-                    CMSG_DATA(cmsg_ptr),
+                    CMSG_DATA(cmsg_ptr).cast(),
                     in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
                         .as_mut_ptr(),
                     fds_to_be_copied_count,
@@ -285,7 +250,7 @@ unsafe fn raw_recvmsg(
             return Err(Error::new(libc::ENOBUFS));
         }
 
-        cmsg_ptr = get_next_cmsg(&msg, &cmsg, cmsg_ptr);
+        cmsg_ptr = CMSG_NXTHDR(&msg, &cmsg);
     }
 
     Ok((total_read as usize, copied_fds_count))
@@ -459,7 +424,7 @@ unsafe impl IntoIovec for &[u8] {
 mod tests {
     #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
-    use crate::eventfd::EventFd;
+    use std::io::{pipe, Read};
 
     use std::io::Write;
     use std::mem::size_of;
@@ -471,35 +436,47 @@ mod tests {
 
     #[test]
     fn buffer_len() {
-        assert_eq!(CMSG_SPACE!(0), size_of::<cmsghdr>());
+        assert_eq!(unsafe { CMSG_SPACE(0) as usize }, size_of::<cmsghdr>());
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         assert_eq!(
-            CMSG_SPACE!(size_of::<RawFd>()),
+            unsafe { CMSG_SPACE(size_of::<RawFd>() as c_uint) as usize },
             size_of::<cmsghdr>() + size_of::<c_long>()
+        );
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            unsafe { CMSG_SPACE(size_of::<RawFd>() as c_uint) as usize },
+            size_of::<cmsghdr>() + size_of::<c_uint>()
         );
         if size_of::<RawFd>() == 4 {
             assert_eq!(
-                CMSG_SPACE!(2 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(2 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>()
             );
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             assert_eq!(
-                CMSG_SPACE!(3 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(3 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>() * 2
             );
+            #[cfg(target_os = "macos")]
             assert_eq!(
-                CMSG_SPACE!(4 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(3 * size_of::<RawFd>() as c_uint) as usize },
+                size_of::<cmsghdr>() + size_of::<c_uint>() * 3
+            );
+            assert_eq!(
+                unsafe { CMSG_SPACE(4 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>() * 2
             );
         } else if size_of::<RawFd>() == 8 {
             assert_eq!(
-                CMSG_SPACE!(2 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(2 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>() * 2
             );
             assert_eq!(
-                CMSG_SPACE!(3 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(3 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>() * 3
             );
             assert_eq!(
-                CMSG_SPACE!(4 * size_of::<RawFd>()),
+                unsafe { CMSG_SPACE(4 * size_of::<RawFd>() as c_uint) as usize },
                 size_of::<cmsghdr>() + size_of::<c_long>() * 4
             );
         }
@@ -535,9 +512,9 @@ mod tests {
     fn send_recv_only_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let mut evt = pipe().expect("failed to create pipefd");
         let write_count = s1
-            .send_with_fd([].as_ref(), evt.as_raw_fd())
+            .send_with_fd([].as_ref(), evt.1.as_raw_fd())
             .expect("failed to send fd");
 
         assert_eq!(write_count, 0);
@@ -550,21 +527,25 @@ mod tests {
         assert!(file.as_raw_fd() >= 0);
         assert_ne!(file.as_raw_fd(), s1.as_raw_fd());
         assert_ne!(file.as_raw_fd(), s2.as_raw_fd());
-        assert_ne!(file.as_raw_fd(), evt.as_raw_fd());
+        assert_ne!(file.as_raw_fd(), evt.1.as_raw_fd());
 
         file.write_all(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
             .expect("failed to write to sent fd");
 
-        assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        evt.0
+            .read(buf.as_mut_slice())
+            .expect("Failed to read from PipeReader");
+        assert_eq!(u64::from_ne_bytes(buf), 1203);
     }
 
     #[test]
     fn send_recv_with_fd() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt = EventFd::new(0).expect("failed to create eventfd");
+        let mut evt = pipe().expect("failed to create pipefd");
         let write_count = s1
-            .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
+            .send_with_fds(&[[237].as_ref()], &[evt.1.as_raw_fd()])
             .expect("failed to send fd");
 
         assert_eq!(write_count, 1);
@@ -586,14 +567,18 @@ mod tests {
         assert!(files[0] >= 0);
         assert_ne!(files[0], s1.as_raw_fd());
         assert_ne!(files[0], s2.as_raw_fd());
-        assert_ne!(files[0], evt.as_raw_fd());
+        assert_ne!(files[0], evt.1.as_raw_fd());
 
         let mut file = unsafe { File::from_raw_fd(files[0]) };
 
         file.write_all(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
             .expect("failed to write to sent fd");
 
-        assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        evt.0
+            .read(buf.as_mut_slice())
+            .expect("Failed to read from PipeReader");
+        assert_eq!(u64::from_ne_bytes(buf), 1203);
     }
 
     #[test]
@@ -602,18 +587,18 @@ mod tests {
     fn send_more_recv_less1() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt1 = EventFd::new(0).expect("failed to create eventfd");
-        let evt2 = EventFd::new(0).expect("failed to create eventfd");
-        let evt3 = EventFd::new(0).expect("failed to create eventfd");
-        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let evt1 = pipe().expect("failed to create pipefd");
+        let evt2 = pipe().expect("failed to create pipefd");
+        let evt3 = pipe().expect("failed to create pipefd");
+        let evt4 = pipe().expect("failed to create pipefd");
         let write_count = s1
             .send_with_fds(
                 &[[237].as_ref()],
                 &[
-                    evt1.as_raw_fd(),
-                    evt2.as_raw_fd(),
-                    evt3.as_raw_fd(),
-                    evt4.as_raw_fd(),
+                    evt1.1.as_raw_fd(),
+                    evt2.1.as_raw_fd(),
+                    evt3.1.as_raw_fd(),
+                    evt4.1.as_raw_fd(),
                 ],
             )
             .expect("failed to send fd");
@@ -635,18 +620,18 @@ mod tests {
     fn send_more_recv_less2() {
         let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let evt1 = EventFd::new(0).expect("failed to create eventfd");
-        let evt2 = EventFd::new(0).expect("failed to create eventfd");
-        let evt3 = EventFd::new(0).expect("failed to create eventfd");
-        let evt4 = EventFd::new(0).expect("failed to create eventfd");
+        let evt1 = pipe().expect("failed to create pipefd");
+        let evt2 = pipe().expect("failed to create pipefd");
+        let evt3 = pipe().expect("failed to create pipefd");
+        let evt4 = pipe().expect("failed to create pipefd");
         let write_count = s1
             .send_with_fds(
                 &[[237].as_ref()],
                 &[
-                    evt1.as_raw_fd(),
-                    evt2.as_raw_fd(),
-                    evt3.as_raw_fd(),
-                    evt4.as_raw_fd(),
+                    evt1.1.as_raw_fd(),
+                    evt2.1.as_raw_fd(),
+                    evt3.1.as_raw_fd(),
+                    evt4.1.as_raw_fd(),
                 ],
             )
             .expect("failed to send fd");
