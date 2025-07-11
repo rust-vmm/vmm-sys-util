@@ -4,6 +4,15 @@
 
 -[[#245](https://github.com/rust-vmm/vmm-sys-util/pull/245)]: Make sock_ctrl_msg support unix.
 
+### Added
+
+- [[#244](https://github.com/rust-vmm/vmm-sys-util/pull/244)]: 
+  - Impl `IntoRawFd` for `linux::eventfd::EventFd`.
+  - Use `File::try_clone` to replace the original implementation of `EventFd::try_clone`.
+  Some flags can now be propagated, like `CLOEXEC`.
+  - Add `EventNotifier` and `EventConsumer` as a generic event notification 
+
+
 ## v0.14.0
 
 ### Changed
