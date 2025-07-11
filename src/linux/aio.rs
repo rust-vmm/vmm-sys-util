@@ -151,7 +151,7 @@ impl IoContext {
     /// # Arguments
     /// * `iocb`: The iocb for the operation to be canceled.
     /// * `result`: If the operation is successfully canceled, the event will be copied into the
-    ///             memory pointed to by result without being placed into the completion queue.
+    ///   memory pointed to by result without being placed into the completion queue.
     pub fn cancel(&self, iocb: &IoControlBlock, result: &mut IoEvent) -> Result<()> {
         // SAFETY: It's safe because parameters are valid and we have checked the result.
         let rc = unsafe {

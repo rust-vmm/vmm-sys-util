@@ -115,7 +115,7 @@ fn get_next_cmsg(msghdr: &msghdr, cmsg: &cmsghdr, cmsg_ptr: *mut cmsghdr) -> *mu
 const CMSG_BUFFER_INLINE_CAPACITY: usize = CMSG_SPACE!(size_of::<RawFd>() * 32);
 
 enum CmsgBuffer {
-    Inline([u64; (CMSG_BUFFER_INLINE_CAPACITY + 7) / 8]),
+    Inline([u64; CMSG_BUFFER_INLINE_CAPACITY.div_ceil(8)]),
     Heap(Box<[cmsghdr]>),
 }
 
@@ -124,7 +124,7 @@ impl CmsgBuffer {
         let cap_in_cmsghdr_units =
             (capacity.checked_add(size_of::<cmsghdr>()).unwrap() - 1) / size_of::<cmsghdr>();
         if capacity <= CMSG_BUFFER_INLINE_CAPACITY {
-            CmsgBuffer::Inline([0u64; (CMSG_BUFFER_INLINE_CAPACITY + 7) / 8])
+            CmsgBuffer::Inline([0u64; CMSG_BUFFER_INLINE_CAPACITY.div_ceil(8)])
         } else {
             CmsgBuffer::Heap(
                 vec![
@@ -396,10 +396,10 @@ pub trait ScmSocket {
     ///
     /// * `iovecs` - A list of iovec to receive data from the socket.
     /// * `fds` - A slice of `RawFd`s to put the received file descriptors into. On success, the
-    ///           number of valid file descriptors is indicated by the second element of the
-    ///           returned tuple. The caller owns these file descriptors, but they will not be
-    ///           closed on drop like a `File`-like type would be. It is recommended that each valid
-    ///           file descriptor gets wrapped in a drop type that closes it after this returns.
+    ///   number of valid file descriptors is indicated by the second element of the
+    ///   returned tuple. The caller owns these file descriptors, but they will not be
+    ///   closed on drop like a `File`-like type would be. It is recommended that each valid
+    ///   file descriptor gets wrapped in a drop type that closes it after this returns.
     ///
     /// # Safety
     ///
