@@ -2,6 +2,8 @@
 
 ## Upcoming
 
+-[[#245](https://github.com/rust-vmm/vmm-sys-util/pull/245)]: Make sock_ctrl_msg support unix.
+
 ## v0.14.0
 
 ### Changed
