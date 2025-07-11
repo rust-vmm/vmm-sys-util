@@ -8,6 +8,7 @@
 //! [`eventfd`](http://man7.org/linux/man-pages/man2/eventfd.2.html).
 
 use std::fs::File;
+use std::os::fd::IntoRawFd;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::{io, mem, result};
 
@@ -167,6 +168,12 @@ impl FromRawFd for EventFd {
         EventFd {
             eventfd: File::from_raw_fd(fd),
         }
+    }
+}
+
+impl IntoRawFd for EventFd {
+    fn into_raw_fd(self) -> RawFd {
+        self.eventfd.into_raw_fd()
     }
 }
 
