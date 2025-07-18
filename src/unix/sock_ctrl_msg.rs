@@ -16,8 +16,8 @@ use std::ptr::{copy_nonoverlapping, null_mut, write_unaligned};
 
 use crate::errno::{Error, Result};
 use libc::{
-    c_uint, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, CMSG_DATA, CMSG_LEN, CMSG_NXTHDR,
-    CMSG_SPACE, MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
+    c_uint, c_void, cmsghdr, iovec, msghdr, recvmsg, sendmsg, CMSG_DATA, CMSG_LEN, CMSG_SPACE,
+    MSG_NOSIGNAL, SCM_RIGHTS, SOL_SOCKET,
 };
 use std::os::raw::c_int;
 
@@ -208,13 +208,13 @@ unsafe fn raw_recvmsg(
 
     // Reference to a memory area with a CmsgBuffer, which contains a `cmsghdr` struct followed
     // by a sequence of `in_fds.len()` count RawFds.
-    let mut cmsg_ptr = msg.msg_control as *mut cmsghdr;
+    let cmsg_ptr = msg.msg_control as *mut cmsghdr;
     let mut copied_fds_count = 0;
     // If the control data was truncated, then this might be a sign of incorrect communication
     // protocol. If MSG_CTRUNC was set we must close the fds from the control data.
     let mut teardown_control_data = msg.msg_flags & libc::MSG_CTRUNC != 0;
 
-    while !cmsg_ptr.is_null() {
+    if !cmsg_ptr.is_null() {
         // Safe because we checked that cmsg_ptr was non-null, and the loop is constructed such
         // that it only happens when there is at least sizeof(cmsghdr) space after the pointer to
         // read.
@@ -222,16 +222,12 @@ unsafe fn raw_recvmsg(
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
             let cmsg_len: usize = std::cmp::min(cmsg.cmsg_len as usize, cmsg_capacity);
             let fds_count: usize = (cmsg_len - CMSG_LEN(0) as usize) / size_of::<c_int>();
-            // The sender can transmit more data than we can buffer. If a message is too long to
-            // fit in the supplied buffer, excess bytes may be discarded depending on the type of
-            // socket the message is received from.
-            let fds_to_be_copied_count = std::cmp::min(in_fds.len() - copied_fds_count, fds_count);
-            teardown_control_data |= fds_count > fds_to_be_copied_count;
+            // It could be that while constructing the cmsg structures, alignment constraints made
+            // our allocation big enough that it fits more than the in_fds.len() file descriptors
+            // we intended to receive. Treat this the same way we would treat a truncated message,
+            // because there is no way for us to communicate these extra FDs back to the caller.
+            teardown_control_data |= fds_count > in_fds.len();
             if teardown_control_data {
-                // Allocating space for cmesg buffer might provide extra space for fds, due to
-                // alignment. If these fds can not be stored in `in_fds` buffer, then all the control
-                // data must be dropped to insufficient buffer space for returning them to outer
-                // scope. This might be a sign of incorrect protocol communication.
                 for fd_offset in 0..fds_count {
                     let raw_fds_ptr: *mut RawFd = CMSG_DATA(cmsg_ptr).cast();
                     // The cmsg_ptr is valid here because is checked at the beginning of the
@@ -244,25 +240,13 @@ unsafe fn raw_recvmsg(
                 // `in_fds` according to their current capacity.
                 copy_nonoverlapping(
                     CMSG_DATA(cmsg_ptr).cast(),
-                    in_fds[copied_fds_count..(copied_fds_count + fds_to_be_copied_count)]
-                        .as_mut_ptr(),
-                    fds_to_be_copied_count,
+                    in_fds[0..fds_count].as_mut_ptr(),
+                    fds_count,
                 );
 
-                copied_fds_count += fds_to_be_copied_count;
+                copied_fds_count = fds_count;
             }
         }
-
-        // Remove the previously copied fds.
-        if teardown_control_data {
-            for fd in in_fds.iter().take(copied_fds_count) {
-                // This is safe because we close only the previously copied fds. We do not care
-                // about `close` return code.
-                libc::close(*fd);
-            }
-        }
-
-        cmsg_ptr = CMSG_NXTHDR(&msg, &cmsg);
     }
 
     if teardown_control_data {
