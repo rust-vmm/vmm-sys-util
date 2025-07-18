@@ -224,8 +224,8 @@ unsafe fn raw_recvmsg(
         // read.
         let cmsg = (cmsg_ptr as *mut cmsghdr).read_unaligned();
         if cmsg.cmsg_level == SOL_SOCKET && cmsg.cmsg_type == SCM_RIGHTS {
-            let fds_count: usize =
-                (cmsg.cmsg_len as usize - CMSG_LEN(0) as usize) / size_of::<RawFd>();
+            let cmsg_len: usize = std::cmp::min(cmsg.cmsg_len as usize, cmsg_capacity);
+            let fds_count: usize = (cmsg_len - CMSG_LEN(0) as usize) / size_of::<c_int>();
             // The sender can transmit more data than we can buffer. If a message is too long to
             // fit in the supplied buffer, excess bytes may be discarded depending on the type of
             // socket the message is received from.
