@@ -207,7 +207,7 @@ unsafe fn raw_recvmsg(
     }
 
     if total_read == 0 && (msg.msg_controllen as usize) < size_of::<cmsghdr>() {
-        return Ok((0, 0));
+        return Ok((0, 0))
     }
 
     // Reference to a memory area with a CmsgBuffer, which contains a `cmsghdr` struct followed
@@ -550,66 +550,35 @@ mod tests {
     #[test]
     // Exercise the code paths that activate the issue of receiving the all the ancillary data,
     // but missing to provide enough buffer space to store it.
-    fn send_more_recv_less1() {
-        let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
+    fn send_more_recv_less() {
+        for too_small in 1..3 {
+            let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
-        let (_, evt_notifier1) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier2) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier3) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier4) = pipe().expect("failed to create pipe");
-        let write_count = s1
-            .send_with_fds(
-                &[[237].as_ref()],
-                &[
-                    evt_notifier1.as_raw_fd(),
-                    evt_notifier2.as_raw_fd(),
-                    evt_notifier3.as_raw_fd(),
-                    evt_notifier4.as_raw_fd(),
-                ],
-            )
-            .expect("failed to send fd");
+            let (_, evt_notifier1) = pipe().expect("failed to create pipe");
+            let (_, evt_notifier2) = pipe().expect("failed to create pipe");
+            let (_, evt_notifier3) = pipe().expect("failed to create pipe");
+            let (_, evt_notifier4) = pipe().expect("failed to create pipe");
+            let write_count = s1
+                .send_with_fds(
+                    &[[237].as_ref()],
+                    &[
+                        evt_notifier1.as_raw_fd(),
+                        evt_notifier2.as_raw_fd(),
+                        evt_notifier3.as_raw_fd(),
+                        evt_notifier4.as_raw_fd(),
+                    ],
+                )
+                .expect("failed to send fd");
 
-        assert_eq!(write_count, 1);
+            assert_eq!(write_count, 1);
 
-        let mut files = [0; 2];
-        let mut buf = [0u8];
-        let mut iovecs = [iovec {
-            iov_base: buf.as_mut_ptr() as *mut c_void,
-            iov_len: buf.len(),
-        }];
-        assert!(unsafe { s2.recv_with_fds(&mut iovecs[..], &mut files).is_err() });
-    }
-
-    // Exercise the code paths that activate the issue of receiving part of the sent ancillary
-    // data due to insufficient buffer space, activating `msg_flags` `MSG_CTRUNC` flag.
-    #[test]
-    fn send_more_recv_less2() {
-        let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
-
-        let (_, evt_notifier1) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier2) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier3) = pipe().expect("failed to create pipe");
-        let (_, evt_notifier4) = pipe().expect("failed to create pipe");
-        let write_count = s1
-            .send_with_fds(
-                &[[237].as_ref()],
-                &[
-                    evt_notifier1.as_raw_fd(),
-                    evt_notifier2.as_raw_fd(),
-                    evt_notifier3.as_raw_fd(),
-                    evt_notifier4.as_raw_fd(),
-                ],
-            )
-            .expect("failed to send fd");
-
-        assert_eq!(write_count, 1);
-
-        let mut files = [0; 1];
-        let mut buf = [0u8];
-        let mut iovecs = [iovec {
-            iov_base: buf.as_mut_ptr() as *mut c_void,
-            iov_len: buf.len(),
-        }];
-        assert!(unsafe { s2.recv_with_fds(&mut iovecs[..], &mut files).is_err() });
+            let mut files = vec![0; too_small];
+            let mut buf = [0u8];
+            let mut iovecs = [iovec {
+                iov_base: buf.as_mut_ptr() as *mut c_void,
+                iov_len: buf.len(),
+            }];
+            unsafe { s2.recv_with_fds(&mut iovecs[..], &mut files).unwrap_err() };
+        }
     }
 }
