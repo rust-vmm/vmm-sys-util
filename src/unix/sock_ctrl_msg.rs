@@ -206,10 +206,6 @@ unsafe fn raw_recvmsg(
         return Err(Error::last());
     }
 
-    if total_read == 0 && (msg.msg_controllen as usize) < size_of::<cmsghdr>() {
-        return Ok((0, 0))
-    }
-
     // Reference to a memory area with a CmsgBuffer, which contains a `cmsghdr` struct followed
     // by a sequence of `in_fds.len()` count RawFds.
     let mut cmsg_ptr = msg.msg_control as *mut cmsghdr;
@@ -264,11 +260,13 @@ unsafe fn raw_recvmsg(
                 // about `close` return code.
                 libc::close(*fd);
             }
-
-            return Err(Error::new(libc::ENOBUFS));
         }
 
         cmsg_ptr = CMSG_NXTHDR(&msg, &cmsg);
+    }
+
+    if teardown_control_data {
+        return Err(Error::new(libc::ENOBUFS));
     }
 
     Ok((total_read as usize, copied_fds_count))
@@ -551,7 +549,14 @@ mod tests {
     // Exercise the code paths that activate the issue of receiving the all the ancillary data,
     // but missing to provide enough buffer space to store it.
     fn send_more_recv_less() {
-        for too_small in 1..3 {
+        // macos does not set MSG_CTRUNC if we pass a zero-size buffer for control data, even
+        // if the sender does provide control data, while linux does
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        let start = 0;
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
+        let start = 1;
+
+        for too_small in start..3 {
             let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
 
             let (_, evt_notifier1) = pipe().expect("failed to create pipe");
