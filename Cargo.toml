@@ -17,7 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 with-serde = ["serde", "serde_derive"]
 
 [dependencies]
-libc = "0.2.39"
+libc = "0.2.127"
 serde = { version = "1.0.27", optional = true }
 serde_derive = { version = "1.0.27", optional = true }
 
