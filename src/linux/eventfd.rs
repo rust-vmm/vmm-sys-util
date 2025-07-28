@@ -12,7 +12,7 @@ use std::os::fd::IntoRawFd;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::{io, mem, result};
 
-use libc::{c_void, dup, eventfd, read, write};
+use libc::{c_void, eventfd, read, write};
 
 // Reexport commonly used flags from libc.
 pub use libc::{EFD_CLOEXEC, EFD_NONBLOCK, EFD_SEMAPHORE};
@@ -142,18 +142,9 @@ impl EventFd {
     /// assert_eq!(evt_clone.read().unwrap(), 923);
     /// ```
     pub fn try_clone(&self) -> result::Result<EventFd, io::Error> {
-        // SAFETY: This is safe because we made this fd and properly check that it returns
-        // without error.
-        let ret = unsafe { dup(self.as_raw_fd()) };
-        if ret < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(EventFd {
-                // SAFETY: This is safe because we checked ret for success and know the kernel
-                // gave us an fd that we own.
-                eventfd: unsafe { File::from_raw_fd(ret) },
-            })
-        }
+        Ok(EventFd {
+            eventfd: self.eventfd.try_clone()?,
+        })
     }
 }
 
