@@ -133,12 +133,14 @@ impl IntoRawFd for EventConsumer {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
-unsafe fn fcntl_setfl(fd: RawFd, flag: i32) -> Result<(), io::Error> {
-    let flags = libc::fcntl(fd, libc::F_GETFL);
+fn fcntl_setfl(file: &File, flag: i32) -> Result<(), io::Error> {
+    // SAFETY: Rust's I/O safety ensures `file` contains a valid FD.
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
     if flags < 0 {
         return Err(io::Error::last_os_error());
     }
-    let ret = libc::fcntl(fd, libc::F_SETFL, flags | flag);
+    // SAFETY: Rust's I/O safety ensures `file` contains a valid FD.
+    let ret = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, flags | flag) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -146,12 +148,14 @@ unsafe fn fcntl_setfl(fd: RawFd, flag: i32) -> Result<(), io::Error> {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
-unsafe fn fcntl_setfd(fd: RawFd, flag: i32) -> Result<(), io::Error> {
-    let flags = libc::fcntl(fd, libc::F_GETFD);
+fn fcntl_setfd(file: &File, flag: i32) -> Result<(), io::Error> {
+    // SAFETY: Rust's I/O safety ensures `file` contains a valid FD.
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
     if flags < 0 {
         return Err(io::Error::last_os_error());
     }
-    let ret = libc::fcntl(fd, libc::F_SETFD, flags | flag);
+    // SAFETY: Rust's I/O safety ensures `file` contains a valid FD.
+    let ret = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFD, flags | flag) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -190,20 +194,12 @@ pub fn new_event_consumer_and_notifier(
     // SAFETY: Safe because we check the fd is valid. And the kernel gave us an fd that we own.
     let notifier = unsafe { EventNotifier::from_raw_fd(fds[1]) };
     if flags.contains(EventFlag::NONBLOCK) {
-        // SAFETY: We ensure that the passed fd is valid and check the return value of all operations.
-        // If an exception is thrown, the fds will be closed.
-        unsafe {
-            fcntl_setfl(consumer.as_raw_fd(), libc::O_NONBLOCK)?;
-            fcntl_setfl(notifier.as_raw_fd(), libc::O_NONBLOCK)?;
-        }
+        fcntl_setfl(&consumer.fd, libc::O_NONBLOCK)?;
+        fcntl_setfl(&notifier.fd, libc::O_NONBLOCK)?;
     }
     if flags.contains(EventFlag::CLOEXEC) {
-        // SAFETY: We ensure that the passed fd is valid and check the return value of all operations.
-        // If an exception is thrown, the fds will be closed.
-        unsafe {
-            fcntl_setfd(consumer.as_raw_fd(), libc::FD_CLOEXEC)?;
-            fcntl_setfd(notifier.as_raw_fd(), libc::FD_CLOEXEC)?;
-        }
+        fcntl_setfd(&consumer.fd, libc::FD_CLOEXEC)?;
+        fcntl_setfd(&notifier.fd, libc::FD_CLOEXEC)?;
     }
     Ok((consumer, notifier))
 }
