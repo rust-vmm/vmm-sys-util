@@ -287,11 +287,8 @@ mod tests {
     fn test_nonblock() {
         let (consumer, _notifier) = new_event_consumer_and_notifier(EventFlag::NONBLOCK)
             .expect("Failed to create notifier and consumer");
-        let r = consumer.consume();
-        match r {
-            Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
-            _ => panic!("Unexpected"),
-        }
+        let err = consumer.consume().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
     }
 
     #[test]
