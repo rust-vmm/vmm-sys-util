@@ -164,20 +164,14 @@ mod tests {
     fn test_write_overflow() {
         let evt = EventFd::new(EFD_NONBLOCK).unwrap();
         evt.write(u64::MAX - 1).unwrap();
-        let r = evt.write(1);
-        match r {
-            Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
-            _ => panic!("Unexpected"),
-        }
+        let err = evt.write(1).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
     }
     #[test]
     fn test_read_nothing() {
         let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        let r = evt.read();
-        match r {
-            Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
-            _ => panic!("Unexpected"),
-        }
+        let err = evt.read().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
     }
     #[test]
     fn test_clone() {
