@@ -234,23 +234,19 @@ unsafe fn raw_recvmsg(
 /// # Examples
 ///
 /// ```
-/// # extern crate libc;
-/// extern crate vmm_sys_util;
-/// use vmm_sys_util::sock_ctrl_msg::ScmSocket;
-/// # use vmm_sys_util::eventfd::{EventFd, EFD_NONBLOCK};
-/// # use std::fs::File;
-/// # use std::io::Write;
-/// # use std::os::unix::io::{AsRawFd, FromRawFd};
-/// # use std::os::unix::net::UnixDatagram;
-/// # use std::slice::from_raw_parts;
+/// use std::os::fd::{AsRawFd, FromRawFd};
+/// use std::os::unix::net::UnixDatagram;
 ///
-/// # use libc::{c_void, iovec};
+/// use libc::{c_void, iovec};
+/// use vmm_sys_util::event::{new_event_consumer_and_notifier, EventFlag, EventNotifier};
+/// use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 ///
 /// let (s1, s2) = UnixDatagram::pair().expect("failed to create socket pair");
-/// let evt = EventFd::new(0).expect("failed to create eventfd");
+/// let (consumer, fd_to_send) = new_event_consumer_and_notifier(EventFlag::empty())
+///     .expect("Failed to create notifier and consumer");
 ///
 /// let write_count = s1
-///     .send_with_fds(&[[237].as_ref()], &[evt.as_raw_fd()])
+///     .send_with_fds(&[[237].as_ref()], &[fd_to_send.as_raw_fd()])
 ///     .expect("failed to send fd");
 ///
 /// let mut files = [0; 2];
@@ -264,10 +260,9 @@ unsafe fn raw_recvmsg(
 ///         .expect("failed to recv fd")
 /// };
 ///
-/// let mut file = unsafe { File::from_raw_fd(files[0]) };
-/// file.write(unsafe { from_raw_parts(&1203u64 as *const u64 as *const u8, 8) })
-///     .expect("failed to write to sent fd");
-/// assert_eq!(evt.read().expect("failed to read from eventfd"), 1203);
+/// let mut notifier = unsafe { EventNotifier::from_raw_fd(files[0]) };
+/// notifier.notify().unwrap();
+/// assert!(consumer.consume().is_ok());
 /// ```
 pub trait ScmSocket {
     /// Gets the file descriptor of this socket.
