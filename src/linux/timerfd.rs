@@ -8,6 +8,7 @@
 //! [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
 
 use std::fs::File;
+use std::io::Read;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::ptr;
@@ -120,23 +121,9 @@ impl TimerFd {
     /// assert!(count >= 3);
     /// ```
     pub fn wait(&mut self) -> Result<u64> {
-        let mut count = 0u64;
-
-        // SAFETY: Safe because this will only modify |buf| and we check the return value.
-        let ret = unsafe {
-            libc::read(
-                self.as_raw_fd(),
-                &mut count as *mut _ as *mut libc::c_void,
-                mem::size_of_val(&count),
-            )
-        };
-        if ret < 0 {
-            return errno_result();
-        }
-
-        // The bytes in the buffer are guaranteed to be in native byte-order so we don't need to
-        // use from_le or from_be.
-        Ok(count)
+        let mut buf = [0u8; size_of::<u64>()];
+        self.0.read(buf.as_mut_slice())?;
+        Ok(u64::from_ne_bytes(buf))
     }
 
     /// Tell if the timer is armed.
