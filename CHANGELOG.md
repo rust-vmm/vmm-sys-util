@@ -2,6 +2,10 @@
 
 ## Upcoming
 
+### Added
+
+- [[#254](https://github.com/rust-vmm/vmm-sys-util/pull/254)]: Support `TFD_NONBLOCK` for `timerfd::TimerFd`.
+
 ## v0.15.0
 
 ### Added
