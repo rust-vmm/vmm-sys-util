@@ -8,15 +8,26 @@
 //! [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
 
 use std::fs::File;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::ptr;
 use std::time::Duration;
 
-use libc::{self, timerfd_create, timerfd_gettime, timerfd_settime, CLOCK_MONOTONIC, TFD_CLOEXEC};
+use libc::{self, timerfd_create, timerfd_gettime, timerfd_settime, CLOCK_MONOTONIC};
 
 use crate::errno::{errno_result, Result};
+
+bitflags::bitflags! {
+    /// Flags that are accepted by [`timerfd_create`] / [`TimerFd::new_with_flags`]
+    pub struct TimerFdFlag: libc::c_int {
+        /// Non-blocking (meaning [`read`]s on the timerfd before it expires
+        /// return 0, instead of blocking until expiry).
+        const NONBLOCK = libc::TFD_NONBLOCK;
+        /// Close-on-exec flag
+        const CLOEXEC = libc::TFD_CLOEXEC;
+    }
+}
 
 /// A safe wrapper around a Linux
 /// [`timerfd`](http://man7.org/linux/man-pages/man2/timerfd_create.2.html).
@@ -24,14 +35,21 @@ use crate::errno::{errno_result, Result};
 pub struct TimerFd(File);
 
 impl TimerFd {
-    /// Create a new [`TimerFd`](struct.TimerFd.html).
+    /// Create a new [`TimerFd`](struct.TimerFd.html) with [`TimerFdFlag::CLOEXEC`] set.
     ///
     /// This creates a nonsettable monotonically increasing clock that does not
     /// change after system startup. The timer is initally disarmed and must be
     /// armed by calling [`reset`](fn.reset.html).
     pub fn new() -> Result<TimerFd> {
+        Self::new_with_flags(TimerFdFlag::CLOEXEC)
+    }
+
+    /// Creates a new [`TimerFd`] with the given flags.
+    pub fn new_with_flags(tfd_flags: TimerFdFlag) -> Result<TimerFd> {
+        // truncate unknown/invalid flags
+        let flags = tfd_flags & TimerFdFlag::all();
         // SAFETY: Safe because this doesn't modify any memory and we check the return value.
-        let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
+        let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, flags.bits) };
         if ret < 0 {
             return errno_result();
         }
@@ -101,7 +119,8 @@ impl TimerFd {
     ///
     /// The return value represents the number of times the timer has expired since
     /// the last time `wait` was called. If the timer has not yet expired once,
-    /// this call will block until it does.
+    /// this call will block until it does (unless [`TimerFdFlags::NONBLOCK`] was specified
+    /// at timer creation, in which case it will return 0).
     ///
     /// # Examples
     ///
@@ -122,8 +141,11 @@ impl TimerFd {
     /// ```
     pub fn wait(&mut self) -> Result<u64> {
         let mut buf = [0u8; size_of::<u64>()];
-        self.0.read(buf.as_mut_slice())?;
-        Ok(u64::from_ne_bytes(buf))
+        match self.0.read(buf.as_mut_slice()) {
+            Err(inner) if inner.kind() == ErrorKind::WouldBlock => Ok(0),
+            Err(err) => Err(err.into()),
+            Ok(_) => Ok(u64::from_ne_bytes(buf)),
+        }
     }
 
     /// Tell if the timer is armed.
@@ -221,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_from_raw_fd() {
-        let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC) };
+        let ret = unsafe { timerfd_create(CLOCK_MONOTONIC, libc::TFD_CLOEXEC) };
         let tfd = unsafe { TimerFd::from_raw_fd(ret) };
         assert!(!tfd.is_armed().unwrap());
     }
@@ -265,5 +287,14 @@ mod tests {
         assert!(count >= 5, "count = {}", count);
         tfd.clear().expect("unable to clear the timer");
         assert!(!tfd.is_armed().unwrap());
+    }
+
+    #[test]
+    fn test_nonblock() {
+        let mut tfd = TimerFd::new_with_flags(TimerFdFlag::NONBLOCK).unwrap();
+        let dur = Duration::from_secs(3600); // 1 hour
+        let interval = Duration::from_secs(3600);
+        tfd.reset(dur, Some(interval)).expect("failed to arm timer");
+        assert_eq!(tfd.wait().unwrap(), 0);
     }
 }
