@@ -119,7 +119,7 @@ impl TimerFd {
     ///
     /// The return value represents the number of times the timer has expired since
     /// the last time `wait` was called. If the timer has not yet expired once,
-    /// this call will block until it does (unless [`TimerFdFlags::NONBLOCK`] was specified
+    /// this call will block until it does (unless [`TimerFdFlag::NONBLOCK`] was specified
     /// at timer creation, in which case it will return 0).
     ///
     /// # Examples
