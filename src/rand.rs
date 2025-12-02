@@ -81,7 +81,11 @@ fn rand_alphanumerics_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> OsString {
 
 fn rand_bytes_impl(rand_fn: &dyn Fn() -> u32, len: usize) -> Vec<u8> {
     let mut buf: Vec<Vec<u8>> = Vec::new();
-    let mut num = if len % 4 == 0 { len / 4 } else { len / 4 + 1 };
+    let mut num = if len.is_multiple_of(4) {
+        len / 4
+    } else {
+        len / 4 + 1
+    };
     while num > 0 {
         buf.push(xor_pseudo_rng_u8_bytes(rand_fn));
         num -= 1;
