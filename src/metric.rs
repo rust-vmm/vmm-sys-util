@@ -11,6 +11,8 @@
 //! of these components can choose what metrics they’re interested in and also
 //! can add their own custom metrics without the need to maintain forks.
 
+#![cfg(target_has_atomic = "64")]
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Abstraction over the common metric operations.
