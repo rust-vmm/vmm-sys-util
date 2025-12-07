@@ -91,9 +91,7 @@ impl TimerFd {
         {
             spec.it_value.tv_sec = dur.as_secs() as libc::time_t;
         }
-        // nsec always fits in i32 because subsec_nanos is defined to be less than one billion.
-        let nsec = dur.subsec_nanos() as i32;
-        spec.it_value.tv_nsec = libc::c_long::from(nsec);
+        spec.it_value.tv_nsec = dur.subsec_nanos() as _;
 
         if let Some(int) = interval {
             // https://github.com/rust-lang/libc/issues/1848
@@ -101,9 +99,7 @@ impl TimerFd {
             {
                 spec.it_interval.tv_sec = int.as_secs() as libc::time_t;
             }
-            // nsec always fits in i32 because subsec_nanos is defined to be less than one billion.
-            let nsec = int.subsec_nanos() as i32;
-            spec.it_interval.tv_nsec = libc::c_long::from(nsec);
+            spec.it_interval.tv_nsec = int.subsec_nanos() as _;
         }
 
         // SAFETY: Safe because this doesn't modify any memory and we check the return value.
